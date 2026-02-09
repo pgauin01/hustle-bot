@@ -1,7 +1,6 @@
 import logging
-from typing import List, Dict, Any, Optional
-
 import requests
+from typing import List, Dict, Any
 
 from ..graph.state import JobState
 
@@ -10,47 +9,38 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
 
-REMOTEOK_API_URL = "https://remoteok.com/api"
-LOGGER = logging.getLogger(__name__)
-
-def fetch_from_remoteok(tag: Optional[str] = None) -> List[Dict[str, Any]]:
-    params: Dict[str, str] = {}
-    if tag:
-        params["tag"] = tag
-
+def fetch_from_remoteok(tag: str = "python") -> List[Dict[str, Any]]:
+    """
+    Fetches jobs from RemoteOK API.
+    API behavior: Returns a list where [0] is legal info, [1..n] are jobs.
+    """
+    url = "https://remoteok.com/api"
+    
+    # RemoteOK works best with single-word tags (e.g., "python", "engineer", "exec").
+    # If the user sends "python developer", we take the first word "python" to ensure results.
+    clean_tag = tag.split(" ")[0].lower() if tag else "python"
+    
+    params = {"tag": clean_tag}
+    
+    print(f"📡 Connecting to RemoteOK API (tag='{clean_tag}')...")
+    
     try:
-        response = requests.get(
-            REMOTEOK_API_URL,
-            headers=HEADERS,
-            params=params,
-            timeout=20,
-        )
+        response = requests.get(url, headers=HEADERS, params=params, timeout=10)
         response.raise_for_status()
-        payload = response.json()
-    except requests.RequestException as exc:
-        LOGGER.warning("RemoteOK request failed: %s", exc)
-        return []
-    except ValueError as exc:
-        LOGGER.warning("RemoteOK returned invalid JSON: %s", exc)
-        return []
-
-    if not isinstance(payload, list):
-        LOGGER.warning("RemoteOK payload unexpected type: %s", type(payload).__name__)
-        return []
-
-    jobs = [
-        item for item in payload
-        if isinstance(item, dict) and item.get("position")
-    ]
-
-    if tag:
-        tag_lower = tag.lower()
+        data = response.json()
+        
+        # Filter out the "legal" metadata and ensure items are dictionaries
         jobs = [
-            job for job in jobs
-            if any(tag_lower == t.lower() for t in job.get("tags", []))
+            item for item in data 
+            if isinstance(item, dict) and "legal" not in item
         ]
-
-    return jobs
+        
+        # NOTE: RemoteOK provides a "location" field (e.g., "Worldwide", "North America Only")
+        return jobs
+    
+    except Exception as e:
+        print(f"❌ RemoteOK Error: {e}")
+        return []
 
 def fetch_remoteok(state: JobState):
     query = state.get("search_query", "python")
@@ -59,15 +49,9 @@ def fetch_remoteok(state: JobState):
     raw_jobs = fetch_from_remoteok(tag=query)
     
     # 2. Structure the data for the 'raw_results' list in state
-    # We wrap it in a dict to identify the source later in the Normalizer
     results_wrapper = [
         {"source": "remoteok", "payload": job} 
         for job in raw_jobs
     ]
     
     return {"raw_results": results_wrapper}
-
-if __name__ == "__main__":
-    # Quick test if you run this file directly
-    results = fetch_from_remoteok("python")
-    print(f"First job title: {results[0].get('position') if results else 'None'}")

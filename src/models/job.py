@@ -15,6 +15,10 @@ class Job:
     currency: str = "USD"
     skills: List[str] = field(default_factory=list)
     posted_at: Optional[datetime] = None
+
+    # NEW FIELDS
+    location: str = "Unknown"  # e.g., "Worldwide", "United States", "India"
+    is_remote: bool = True
     
     # Analysis fields (filled by AI later)
     relevance_score: int = 0

@@ -6,6 +6,7 @@ from ..models.job import Job
 class JobState(TypedDict):
     # INPUT: What the user is looking for
     search_query: str 
+    must_have_keywords: List[str]
     
     # STEP 1: Raw data collection (Append-only to allow parallel writes)
     # Each fetcher adds to this list: {"source": "upwork", "payload": {...}}

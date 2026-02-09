@@ -4,6 +4,10 @@ from ..models.job import Job
 from ..utils.cleaning import clean_html
 from ..platforms.remoteok import fetch_from_remoteok
 from ..llm.scoring import score_jobs_with_llm
+from ..llm.proposal import generate_proposals
+from ..platforms.weworkremotely import fetch_weworkremotely
+from ..platforms.upwork import fetch_upwork_api
+from ..utils.filtering import strict_keyword_filter
 
 # --- 1. Fetchers ---
 
@@ -17,35 +21,28 @@ def fetch_remoteok(state: JobState):
     except Exception as e:
         print(f"❌ RemoteOK Failed: {e}")
         return {"raw_results": []}
-    
-def score_jobs(state: JobState):
-    normalized = state.get("normalized_jobs", [])
-    query = state.get("search_query", "Python Developer")
-    
-    if not normalized:
-        return {"filtered_jobs": []}
-
-    # Run the LLM
-    scored = score_jobs_with_llm(normalized, query)
-    
-    # Filter: Keep only jobs with Score > 50 (or keep all to see results)
-    # Let's keep all for now so you can see the AI working
-    return {"filtered_jobs": scored}    
-
-
 
 def fetch_upwork(state: JobState):
-    # Mock for now, pending RSS implementation
-    print("🌍 Fetching Upwork (Mock)...")
-    mock_job = {
-        "id": "123", 
-        "title": "Backend Dev", 
-        "description": "<p>Need a fast api expert</p>",
-        "budget": 500
-    }
-    return {"raw_results": [{"source": "upwork", "payload": mock_job}]}
+    query = state.get("search_query", "python")
+    print(f"🌍 Fetching Upwork Live Data for '{query}'...")
+    
+    try:
+        raw_jobs = fetch_upwork_api(query)
+        return {"raw_results": [{"source": "upwork", "payload": j} for j in raw_jobs]}
+    except Exception as e:
+        print(f"❌ Upwork Node Failed: {e}")
+        return {"raw_results": []}
 
-# --- 2. The Normalizer (Context Switcher) ---
+def fetch_wwr(state: JobState):
+    print("🌍 Fetching WeWorkRemotely...")
+    try:
+        raw_jobs = fetch_weworkremotely()
+        return {"raw_results": [{"source": "wwr", "payload": j} for j in raw_jobs]}
+    except Exception as e:
+        print(f"❌ WWR Node Failed: {e}")
+        return {"raw_results": []}
+
+# --- 2. The Normalizer ---
 
 def normalize_data(state: JobState):
     raw_results = state.get("raw_results", [])
@@ -68,23 +65,40 @@ def normalize_data(state: JobState):
                     budget_min=float(payload.get("salary_min") or 0),
                     budget_max=float(payload.get("salary_max") or 0),
                     skills=payload.get("tags", []),
-                    posted_at=payload.get("date") # Needs parsing in V2
+                    posted_at=payload.get("date"),
+                    location=payload.get("location", "Unknown"), 
+                    is_remote=True
                 )
                 normalized_jobs.append(job)
 
             elif source == "upwork":
-                # Handle our mock (or future RSS) data
                 job = Job(
-                    id=payload.get("id"),
+                    id=payload.get("id") or payload.get("link", ""),
                     platform="upwork",
-                    title=payload.get("title"),
-                    description=clean_html(payload.get("description")),
-                    url=f"https://upwork.com/jobs/{payload.get('id')}",
-                    budget_min=float(payload.get("budget", 0)),
-                    budget_max=float(payload.get("budget", 0)),
-                    skills=[], # RSS usually provides this, mock might not
+                    title=payload.get("title", "Unknown"),
+                    description=clean_html(payload.get("description", "")),
+                    url=payload.get("link", ""),
+                    budget_min=float(payload.get("budget_min") or 0.0),
+                    budget_max=float(payload.get("budget_max") or 0.0),
+                    location=payload.get("location", "Unknown"),
+                    skills=payload.get("skills", []),
+                    posted_at=payload.get("published")
                 )
                 normalized_jobs.append(job)
+
+            elif source == "wwr":
+                job = Job(
+                    id=payload.get("id"),
+                    platform="weworkremotely",
+                    title=payload.get("title", "Unknown"),
+                    description=clean_html(payload.get("description", "")),
+                    url=payload.get("link", ""),
+                    budget_min=0.0, # WWR rarely lists salary in metadata
+                    budget_max=0.0,
+                    skills=[], 
+                    posted_at=payload.get("published")
+                )
+                normalized_jobs.append(job) 
                 
         except Exception as e:
             print(f"⚠️ Failed to normalize a {source} job: {e}")
@@ -93,32 +107,68 @@ def normalize_data(state: JobState):
     print(f"✅ Normalized {len(normalized_jobs)} valid jobs.")
     return {"normalized_jobs": normalized_jobs}
 
-# --- 3. Scorer Placeholder ---
+# --- 3. The Scorer (Use ONLY this one) ---
 
 def score_jobs(state: JobState):
-    # Just pass through for now
-    return {"filtered_jobs": state["normalized_jobs"]}
+    normalized = state.get("normalized_jobs", [])
+    query = state.get("search_query", "Python Developer")
+    must_haves = state.get("must_have_keywords", []) # <--- Get keywords
+    
+    if not normalized:
+        return {"filtered_jobs": []}
 
-# --- 4. Graph Construction ---
+    # 1. APPLY HARD FILTER (Python)
+    # This deletes bad jobs BEFORE the AI sees them.
+    technically_qualified = strict_keyword_filter(normalized, must_haves)
+    
+    if not technically_qualified:
+        print("⚠️ No jobs passed the hard keyword filter.")
+        return {"filtered_jobs": []}
+
+    # 2. APPLY SOFT SCORING (LLM)
+    # Now the AI scores the survivors based on the Rubric
+    scored = score_jobs_with_llm(technically_qualified, query)
+    
+    return {"filtered_jobs": scored}
+
+
+# --- 4. The Drafter (NEW NODE) ---
+def draft_proposals_node(state: JobState):
+    # Get the high-quality jobs from the previous step
+    good_jobs = state.get("filtered_jobs", [])
+    
+    # Take only the top 3 to save API costs/time
+    top_picks = good_jobs[:3]
+    
+    if not top_picks:
+        return {"proposals": []}
+    
+    # Generate drafts
+    drafts_dict = generate_proposals(top_picks)
+    
+    # Convert dict to a list of strings for the state
+    proposal_list = list(drafts_dict.values())
+    
+    return {"proposals": proposal_list}
+
+# --- 5. Graph Construction ---
 
 def create_graph():
     workflow = StateGraph(JobState)
 
-    # 1. Add Nodes
     workflow.add_node("remoteok_fetcher", fetch_remoteok)
+    workflow.add_node("wwr_fetcher", fetch_wwr)
     workflow.add_node("upwork_fetcher", fetch_upwork)
     workflow.add_node("normalizer", normalize_data)
     workflow.add_node("scorer", score_jobs)
+    workflow.add_node("drafter", draft_proposals_node) # <--- Add Node
 
-    # 2. Define the Flow
-    # START -> RemoteOK -> Upwork -> Normalizer -> Scorer -> END
-    
-    # ⚠️ CRITICAL CHANGE: Start with remoteok, not upwork
     workflow.set_entry_point("remoteok_fetcher") 
-    
-    workflow.add_edge("remoteok_fetcher", "upwork_fetcher")
+    workflow.add_edge("remoteok_fetcher", "wwr_fetcher") # <--- NEW EDGE
+    workflow.add_edge("wwr_fetcher", "upwork_fetcher")   # <--- CONNECT WWR
     workflow.add_edge("upwork_fetcher", "normalizer")
     workflow.add_edge("normalizer", "scorer")
-    workflow.add_edge("scorer", END)
+    workflow.add_edge("scorer", "drafter") # <--- Connect Scorer to Drafter
+    workflow.add_edge("drafter", END)      # <--- Drafter ends the flow
 
     return workflow.compile()

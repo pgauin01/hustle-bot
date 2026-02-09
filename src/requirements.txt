@@ -1,2 +1,7 @@
 langgraph
 requests
+python-dotenv
+google-genai
+pandas
+streamlit
+feedparser

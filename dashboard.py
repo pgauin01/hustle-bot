@@ -91,6 +91,27 @@ def main():
                 save_settings(upwork_url_input)
                 st.success("Saved!")
 
+            # --- NEW TELEGRAM SECTION ---
+            st.markdown("---")
+            st.caption("📱 Telegram Alerts")
+            tele_token = st.text_input("Bot Token", value=saved_config.get("tele_token", ""), type="password")
+            tele_chat = st.text_input("Chat ID", value=saved_config.get("tele_chat", ""))
+            
+            if tele_token and tele_chat:
+                os.environ["TELEGRAM_BOT_TOKEN"] = tele_token
+                os.environ["TELEGRAM_CHAT_ID"] = tele_chat
+            # -----------------------------
+
+            if st.button("💾 Save Config", key="save_config_btn"):
+                # Save all 4 values now
+                new_config = {
+                    "tele_token": tele_token,
+                    "tele_chat": tele_chat
+                }
+                with open("user_settings.json", "w") as f:
+                    json.dump(new_config, f)
+                st.success("Saved!")    
+
         # 3. PROFILE PREVIEW (Mini)
         with st.expander("👤 My Profile", expanded=False):
             # Load current profile text
@@ -149,6 +170,9 @@ def main():
             for event in app.stream(initial_state):
                 # 'event' is a dict like: {'remoteok_fetcher': {'raw_results': [...]}}
                 for node_name, output in event.items():
+
+                    if output is None:
+                        continue
                     
                     # Update our local state copy
                     final_state.update(output)

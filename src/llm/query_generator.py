@@ -43,11 +43,19 @@ def generate_search_queries() -> List[str]:
     
     RULES:
     1. Return strictly a JSON list of strings.
-    2. Query 1: **CORE STACK** (Focus on the candidate's strongest hard skills, e.g., "React Developer", "Frontend Engineer").
-    3. Query 2: **CAREER GROWTH** (Focus on their new/emerging skills, e.g., "AI Engineer", "Web3 Developer").
-    4. Query 3: **HYBRID/UNICORN** (Combine both, e.g., "React AI Developer", "Full Stack Web3").
+    2. **CRITICAL: Keep queries SHORT (max 2-3 words).** Search engines fail on long phrases.
+    3. Query 1 (Core): High-volume keywords (e.g., "React Node", "Full Stack").
+    4. Query 2 (Growth): Emerging tech keywords (e.g., "AI Engineer", "LangChain").
+    5. Query 3 (Hybrid): Two skill combos (e.g., "React Python", "Web3 Frontend").
     
-    Output Format: ["Query 1", "Query 2", "Query 3"]
+    BAD Examples (DO NOT USE): 
+    - "Senior Full Stack Engineer React Node.js" (Too long)
+    - "Looking for Generative AI roles" (Not a keyword)
+    
+    GOOD Examples:
+    - "React Node"
+    - "Generative AI"
+    - "Full Stack"
     """
 
     try:

@@ -8,6 +8,7 @@ from ..llm.proposal import generate_proposals
 from ..platforms.weworkremotely import fetch_weworkremotely
 from ..platforms.upwork import fetch_upwork_api
 from ..utils.filtering import strict_keyword_filter
+from ..notifications.telegram import send_telegram_alert
 
 # --- 1. Fetchers ---
 
@@ -151,7 +152,31 @@ def draft_proposals_node(state: JobState):
     
     return {"proposals": proposal_list}
 
-# --- 5. Graph Construction ---
+# --- 5. Notifier Node (NEW) ---
+def notify_user(state: JobState):
+    # Get the jobs we drafted proposals for (Top picks)
+    top_jobs = state.get("filtered_jobs", [])
+    proposals = state.get("proposals", [])
+    
+    # We only notify for the absolute best (e.g. top 3 that got drafts)
+    # Assuming proposals align with the top_jobs[:len(proposals)]
+    
+    print(f"🔔 Sending alerts for {len(proposals)} jobs...")
+    
+    for i, proposal in enumerate(proposals):
+        if i < len(top_jobs):
+            job = top_jobs[i]
+            send_telegram_alert(
+                job_title=job.title,
+                job_url=job.url,
+                score=job.relevance_score,
+                reasoning=job.reasoning,
+                proposal=proposal
+            )
+            
+    return {"proposals": proposals}
+
+# --- 6. Graph Construction ---
 
 def create_graph():
     workflow = StateGraph(JobState)
@@ -161,7 +186,8 @@ def create_graph():
     workflow.add_node("upwork_fetcher", fetch_upwork)
     workflow.add_node("normalizer", normalize_data)
     workflow.add_node("scorer", score_jobs)
-    workflow.add_node("drafter", draft_proposals_node) # <--- Add Node
+    workflow.add_node("drafter", draft_proposals_node)
+    workflow.add_node("notifier", notify_user)
 
     workflow.set_entry_point("remoteok_fetcher") 
     workflow.add_edge("remoteok_fetcher", "wwr_fetcher") # <--- NEW EDGE
@@ -169,6 +195,7 @@ def create_graph():
     workflow.add_edge("upwork_fetcher", "normalizer")
     workflow.add_edge("normalizer", "scorer")
     workflow.add_edge("scorer", "drafter") # <--- Connect Scorer to Drafter
+    workflow.add_edge("drafter", "notifier")
     workflow.add_edge("drafter", END)      # <--- Drafter ends the flow
 
     return workflow.compile()

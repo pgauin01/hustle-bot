@@ -1,0 +1,38 @@
+name: Daily Job Hunt
+
+# Trigger: Runs automatically at 8:00 AM UTC (approx 1:30 PM India time)
+# OR can be run manually from the GitHub Actions tab
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Job Agent
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Hardcode your settings here for the cloud run
+          SEARCH_QUERY: "React Developer"
+          MUST_HAVE_KEYWORDS: "React, Typescript"
+        run: |
+          # We run a headless version of the script
+          python headless_main.py

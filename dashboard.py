@@ -14,7 +14,7 @@ except ImportError:
     genai = None
 
 # Page Config
-st.set_page_config(page_title="HustleBot 2.1", page_icon="💼", layout="wide")
+st.set_page_config(page_title="HustleBot 2.2", page_icon="💼", layout="wide")
 
 # --- HELPER: ROLE SUGGESTER ---
 def suggest_roles(api_key, skills):
@@ -66,6 +66,10 @@ with st.sidebar:
 
         # Input Fields
         api_key = st.text_input("Google API Key", value=settings.get("api_key", ""), type="password")
+        
+        # NEW: Google Search Engine ID
+        google_cx = st.text_input("Google Search CX ID", value=settings.get("google_cx", ""), help="From programmable search engine")
+        
         sheet_url = st.text_input("Google Sheet URL", value=settings.get("sheet_url", ""), placeholder="https://docs.google.com/...")
         tele_token = st.text_input("Telegram Bot Token", value=settings.get("tele_token", ""), type="password")
         tele_chat = st.text_input("Telegram Chat ID", value=settings.get("tele_chat", ""))
@@ -74,6 +78,7 @@ with st.sidebar:
         if st.button("💾 Save Settings"):
             new_settings = {
                 "api_key": api_key,
+                "google_cx": google_cx,
                 "sheet_url": sheet_url,
                 "tele_token": tele_token,
                 "tele_chat": tele_chat
@@ -85,6 +90,7 @@ with st.sidebar:
 
     # Apply Keys to Environment for this session
     if api_key: os.environ["GOOGLE_API_KEY"] = api_key
+    if google_cx: os.environ["GOOGLE_SEARCH_CX"] = google_cx
     if sheet_url: os.environ["GOOGLE_SHEET_URL"] = sheet_url
     if tele_token: os.environ["TELEGRAM_BOT_TOKEN"] = tele_token
     if tele_chat: os.environ["TELEGRAM_CHAT_ID"] = tele_chat
@@ -104,32 +110,47 @@ with tab_run:
     with col1:
         st.subheader("🎯 Target")
         
-        # Initialize session state for role if not exists
         if "suggested_role" not in st.session_state:
             st.session_state["suggested_role"] = "Python Developer"
 
-        # The Inputs
         query = st.text_input("Job Role", value=st.session_state["suggested_role"])
         keywords = st.text_input("Must-Have Skills", value="Python, Django")
         
-        # --- NEW: AUTO-SUGGEST FEATURE ---
+        # --- NEW: PLATFORM SELECTOR ---
+        st.subheader("🌍 Target Platforms")
+        default_sites = [
+            "linkedin.com/jobs", 
+            "naukri.com", 
+            "hirist.tech", 
+            "wellfound.com", 
+            "indeed.com"
+        ]
+        selected_sites = st.multiselect(
+            "Select sites to scan (via Google):", 
+            default_sites, 
+            default=["linkedin.com/jobs", "naukri.com"]
+        )
+        custom_site = st.text_input("Add custom site (optional)", placeholder="e.g. greenhouse.io")
+        if custom_site:
+            selected_sites.append(custom_site)
+        # ------------------------------
+
+        # Auto-Suggest
         with st.expander("✨ Need help with the role?"):
-            if st.button("Brainstorm Roles based on Skills"):
+            if st.button("Brainstorm Roles"):
                 if not keywords:
-                    st.warning("Enter some skills above first!")
+                    st.warning("Enter skills first!")
                 else:
                     with st.spinner("Thinking..."):
                         suggestions = suggest_roles(api_key, keywords)
                         st.session_state["role_suggestions"] = suggestions
             
-            # Display Suggestions as clickable buttons
             if "role_suggestions" in st.session_state and st.session_state["role_suggestions"]:
                 st.caption("Click to apply:")
                 for role in st.session_state["role_suggestions"]:
                     if st.button(f"📍 {role}", use_container_width=True):
                         st.session_state["suggested_role"] = role
                         st.rerun()
-        # ---------------------------------
 
         st.markdown("---")
         run_btn = st.button("🚀 Start Job Hunt", type="primary", use_container_width=True)
@@ -142,23 +163,24 @@ with tab_run:
             with status_container:
                 st.info("Starting Workflow...")
                 
-                # 1. Setup Inputs
                 must_haves = [k.strip() for k in keywords.split(",") if k.strip()]
+                
+                # --- PASS SITES TO STATE ---
                 initial_state = {
                     "search_query": query,
                     "must_have_keywords": must_haves,
+                    "google_search_sites": selected_sites,  # <--- NEW FIELD
                     "raw_results": [],
                     "normalized_jobs": [],
                     "filtered_jobs": [],
                     "proposals": []
                 }
+                # ---------------------------
 
-                # 2. Run the Graph (The Brain)
                 try:
                     app = create_graph()
                     final_state = app.invoke(initial_state)
                     
-                    # 3. Store results
                     st.session_state["results"] = final_state
                     st.success("✅ Workflow Complete!")
                     
@@ -172,32 +194,24 @@ with tab_jobs:
         jobs = results.get("filtered_jobs", [])
         
         if not jobs:
-            st.warning("No jobs found matching your criteria.")
+            st.warning("No jobs found.")
         else:
             st.metric("Qualified Matches", len(jobs))
-            
             data = []
             for j in jobs:
-                comp = getattr(j, 'company', 'Unknown')
                 data.append({
                     "Score": j.relevance_score,
                     "Role": j.title,
-                    "Company": comp,
+                    "Company": getattr(j, 'company', 'Unknown'),
+                    "Platform": j.platform,  # Useful to see where it came from
                     "Why": j.reasoning,
                     "Link": j.url
                 })
-            
             df = pd.DataFrame(data)
-            
-            st.dataframe(
-                df, 
-                column_config={
-                    "Link": st.column_config.LinkColumn("Apply Url"),
-                    "Score": st.column_config.ProgressColumn("Relevance", min_value=0, max_value=100)
-                },
-                hide_index=True,
-                use_container_width=True
-            )
+            st.dataframe(df, column_config={
+                "Link": st.column_config.LinkColumn("Apply Url"),
+                "Score": st.column_config.ProgressColumn("Relevance", min_value=0, max_value=100)
+            }, hide_index=True, use_container_width=True)
     else:
         st.info("Run the agent to see results.")
 
@@ -205,50 +219,36 @@ with tab_jobs:
 with tab_resumes:
     st.subheader("📂 Generated Resumes")
     folder_path = "generated_resumes"
-    
     if not os.path.exists(folder_path):
-        st.warning("No 'generated_resumes' folder found. Run the agent to generate some!")
+        st.warning("No resumes yet.")
     else:
         files = [f for f in os.listdir(folder_path) if f.endswith(".md")]
-        
         if not files:
-            st.info("No resumes generated yet. (Did any job score > 85?)")
+            st.info("No generated resumes found.")
         else:
             for filename in files:
                 file_path = os.path.join(folder_path, filename)
-                
                 with st.expander(f"📄 {filename}", expanded=False):
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
                             content = f.read()
-                        
-                        st.markdown("### Preview")
-                        st.code(content[:500] + "...", language="markdown") 
-                        
-                        st.download_button(
-                            label="⬇️ Download Markdown",
-                            data=content,
-                            file_name=filename,
-                            mime="text/markdown"
-                        )
+                        st.download_button("⬇️ Download", content, filename)
+                        st.code(content[:500] + "...", language="markdown")
                     except Exception as e:
-                        st.error(f"Error reading file: {e}")
+                        st.error(f"Error: {e}")
 
-# --- TAB 4: DRAFTED PROPOSALS (NEW) ---
+# --- TAB 4: DRAFTED PROPOSALS ---
 with tab_proposals:
     st.subheader("✉️ Drafted Cover Letters")
-    
     if "results" in st.session_state:
         results = st.session_state["results"]
         proposals = results.get("proposals", [])
         jobs = results.get("filtered_jobs", [])
         
         if not proposals:
-            st.info("No proposals generated yet. (Did any job score high enough?)")
+            st.info("No proposals generated yet.")
         else:
-            # We assume the order of proposals matches the top jobs
             for i, letter in enumerate(proposals):
-                # Try to get the matching job title if possible
                 job_title = "Unknown Role"
                 if i < len(jobs):
                     job_title = f"{jobs[i].title} at {getattr(jobs[i], 'company', 'Unknown')}"
@@ -258,4 +258,4 @@ with tab_proposals:
                     if i < len(jobs):
                          st.caption(f"Apply Link: {jobs[i].url}")
     else:
-        st.info("Run the agent to see generated proposals.")                        
+        st.info("Run the agent to see generated proposals.")

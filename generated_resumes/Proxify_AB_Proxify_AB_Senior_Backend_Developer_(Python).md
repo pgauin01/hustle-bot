@@ -1,3 +1,7 @@
+Of course. As an expert Resume Writer and ATS Optimizer, I will tailor the candidate's profile to perfectly match the Senior Python Developer role. Here is the rewritten and optimized resume in Markdown format.
+
+***
+
 # Praful Gaur
 
 ## Metadata
@@ -8,35 +12,44 @@
 - **Phone:** +91-8564863703
 - **LinkedIn:** linkedin.com/in/praful-gaur-57521899/
 - **GitHub:** github.com/pgauino1
-- **Location:** NCR, India (Available to work CET +/- 3 hours)
+- **Location:** NCR, India
 
 ## Professional Summary
 
-Senior Python Developer with over 5 years of experience building scalable, high-performance applications. Proficient in **Python**, **Django**, and **PostgreSQL**, with hands-on experience designing and managing cloud infrastructures on **AWS**. Proven ability to build libraries of reusable, efficient code and implement robust data storage solutions. Combines strong backend expertise with full-stack capabilities to collaborate effectively with both technical and non-technical stakeholders in a remote environment.
+Results-oriented Senior Python Developer with over 5 years of experience building scalable, low-latency products. Proficient in **Python** and **Django**, with a strong command of **SQL** and **PostgreSQL** for robust data storage solutions. Experienced in managing cloud infrastructures on **AWS** and leveraging **Docker** for containerization. I follow industry best practices to develop efficient, reusable code and enjoy collaborating with both technical and non-technical stakeholders to bring exciting new ideas to life.
 
 ## Technical Skills
 
-- **Languages:** Python, JavaScript (ES6+), SQL, Solidity, HTML5, CSS3
-- **Backend & Cloud:** Django, FastAPI, Node.js, PostgreSQL, AWS, Docker, GraphQL, REST APIs
-- **Frontend & Mobile:** React.js, React Native, Redux, Bootstrap, Tailwind CSS
+- **Backend & Databases:** Python, Django, SQL, PostgreSQL, FastAPI, Node.js, REST APIs, MongoDb
+- **Cloud & DevOps:** AWS, Docker, CI/CD, Git, Jest (Testing)
 - **AI & GenAI:** LangGraph, Gemini 1.5 Pro, Agentic Workflows, LLM Orchestration
-- **Web3 & Blockchain:** Smart Contracts, Hardhat, Ethers.js, OpenZeppelin, IPFS
-- **Tools & DevOps:** Git, Docker, Jest (Testing), CI/CD
+- **Frontend & Mobile:** JavaScript (ES6+), React.js, React Native, Redux, HTML5, CSS3, Tailwind CSS
+- **Web3 & Blockchain:** Solidity, Smart Contracts, Hardhat, Ethers.js, IPFS, ERC-721/ERC-1155 Standards
 
 ## Key Projects
 
-- **Shadow AI (Daily Planner):** Architected and developed an autonomous daily planner using **Python**, leveraging **LangGraph** and **Gemini 1.5 Pro** to build a multi-step agentic workflow. Designed the backend system to process natural language, manage structured data in a **PostgreSQL** database, and resolve scheduling conflicts.
-- **Nexus Quest (Blockchain RPG):** Engineered a decentralized RPG, developing backend logic for on-chain hero management using Solidity and ERC-721 standards. Integrated Ethers.js for wallet connectivity and real-time game state synchronization.
-- **NFT Marketplace:** Built a full-stack marketplace for digital assets, developing a custom backend indexing engine to track on-chain events and integrating **IPFS** as a decentralized data storage solution.
-- **Tech Bridge Network Manager:** Developed a full-stack system to manage network configurations, implementing backend services to automate approval workflows and manage router change data.
-- **YESGenie (Yes Bank):** Contributed to a secure finance CRM application, building features that interfaced with secure backend services and databases, implementing data protection systems for critical banking operations.
+- **Shadow AI (Daily Planner):** Architected and developed an autonomous daily planner using **Python** with **LangGraph** and **Gemini 1.5 Pro**. Designed a multi-agent backend workflow to transform natural language intent into structured, conflict-free schedules, demonstrating competence in building complex, stable applications.
+- **Nexus Quest (Blockchain RPG):** Engineered a decentralized RPG featuring on-chain hero management using **Solidity** and **ERC-721** standards. Integrated **Ethers.js** for seamless wallet connectivity and real-time game state synchronization.
+- **NFT Marketplace:** Built a full-stack marketplace for minting and trading digital assets. Developed a custom backend indexing engine to track on-chain events and integrated **IPFS** as a decentralized data storage solution.
+- **Tech Bridge Network Manager:** Built a React-based system for managing network configurations and automating approval workflows for router changes.
+- **YESGenie (Yes Bank):** Developed a secure finance CRM application using React Native for banking operations, focusing on data protection and integrity.
 
 ## Work Experience
 
-- **Senior Software Engineer (GlobalLogic):** (May 2024 - July 2024) - Led backend and frontend refactoring initiatives to reduce technical debt and improve application stability and performance for enterprise clients.
-- **Freelance Developer:** (Oct 2023 - April 2024) - Architected and developed a full-stack "Store-to-Door" grocery delivery application, designing and implementing backend services for order processing, inventory management, and data storage.
-- **Senior Software Engineer (PatchInfotech):** (Nov 2020 - Aug 2023) - Designed and implemented scalable backend solutions on **AWS** to support high-traffic financial applications, ensuring low-latency and high performance. Developed and consumed GraphQL APIs and enforced strict data protection standards.
-- **Web Developer (Creative Highs):** (Sept 2018 - Aug 2020) - Developed and maintained full-stack web applications for multiple clients, contributing to the design of data storage solutions and building libraries of reusable code for backend components.
+- **Senior Software Engineer (GlobalLogic):** (May 2024 - July 2024)
+  - Contributed to enterprise applications, focusing on eliminating technical debt and improving overall code stability and performance.
+
+- **Freelance Developer:** (Oct 2023 - April 2024)
+  - Specialized in Finance and E-commerce domains. Engineered a full-stack "Store-to-Door" grocery delivery application, designing and implementing both the user-facing interfaces and the backend logic for order processing and fulfillment.
+
+- **Senior Software Engineer (PatchInfotech):** (Nov 2020 - Aug 2023)
+  - Designed and implemented low-latency, high-performing application modules for financial systems.
+  - Managed and scaled **cloud infrastructure using AWS** services, ensuring robust data protection and application stability.
+  - Collaborated with stakeholders to define requirements and deliver high-quality, reusable code in a remote team environment.
+
+- **Web Developer (Creative Highs):** (Sept 2018 - Aug 2020)
+  - Developed and maintained web applications for multiple clients, diagnosing and resolving complex technical issues to ensure high performance and reliability.
+  - Worked with minimal supervision to deliver projects on schedule, effectively communicating progress to non-technical clients.
 
 ## Education
 

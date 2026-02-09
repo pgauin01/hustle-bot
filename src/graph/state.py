@@ -18,3 +18,4 @@ class JobState(TypedDict):
     # STEP 3: Intelligence & Output
     filtered_jobs: List[Job]   # Jobs that passed the AI check
     proposals: List[str]       # Drafted cover letters for top jobs
+    google_search_sites: List[str]

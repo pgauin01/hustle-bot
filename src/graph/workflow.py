@@ -13,6 +13,8 @@ from ..notifications.telegram import send_telegram_alert
 from ..utils.google_sheets import log_jobs_to_sheet
 from ..llm.resume_tailor import tailor_resume
 from ..utils.file_manager import save_tailored_resume
+from ..platforms.freelancer import fetch_freelancer_api
+from ..platforms.google_jobs import fetch_google_jobs
 
 # --- 1. Fetchers ---
 
@@ -119,6 +121,31 @@ def normalize_data(state: JobState):
                     posted_at=payload.get("published")
                 )
                 normalized_jobs.append(job) 
+            
+            elif source == "freelancer":
+                job = Job(
+                    id=str(payload.get("id")),
+                    platform="freelancer",
+                    title=payload.get("title"),
+                    company="Freelancer Client",
+                    description=payload.get("description"),
+                    url=payload.get("url"),
+                    budget_min=float(payload.get("budget_min") or 0),
+                    budget_max=float(payload.get("budget_max") or 0),
+                    currency=payload.get("currency", "USD")
+                )
+                normalized_jobs.append(job)
+
+            elif source == "google_search":
+                job = Job(
+                    id=payload.get("id"),
+                    platform="google_search", # Could be LinkedIn/Naukri
+                    title=payload.get("title"),
+                    company="See URL",
+                    description=payload.get("description"),
+                    url=payload.get("url")
+                )
+                normalized_jobs.append(job)    
                 
         except Exception as e:
             print(f"⚠️ Failed to normalize a {source} job: {e}")
@@ -272,11 +299,16 @@ def create_graph():
     workflow.add_node("notifier", notify_user)
     workflow.add_node("logger", log_results_node)
     workflow.add_node("tailor", tailor_node)
+    workflow.add_node("freelancer_fetcher", fetch_freelancer_api)
+    workflow.add_node("google_fetcher", fetch_google_jobs)
 
     workflow.set_entry_point("remoteok_fetcher") 
     workflow.add_edge("remoteok_fetcher", "wwr_fetcher")
     workflow.add_edge("wwr_fetcher", "upwork_fetcher")   
-    workflow.add_edge("upwork_fetcher", "normalizer")
+    # workflow.add_edge("upwork_fetcher", "normalizer")
+    workflow.add_edge("upwork_fetcher", "freelancer_fetcher")
+    workflow.add_edge("freelancer_fetcher", "google_fetcher")
+    workflow.add_edge("google_fetcher", "normalizer")
     workflow.add_edge("normalizer", "scorer")
     workflow.add_edge("scorer", "tailor")  
     workflow.add_edge("tailor", "drafter")

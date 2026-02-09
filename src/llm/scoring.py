@@ -14,7 +14,6 @@ def score_jobs_with_llm(jobs: List[Job], query: str) -> List[Job]:
     """
     Sends job descriptions to Gemini to get a relevance score (0-100).
     """
-    # Debug: Check if key exists
     api_key = os.getenv("GOOGLE_API_KEY")
     if not genai:
         print("⚠️  Error: 'google-genai' library not installed. Run: pip install google-genai")
@@ -27,16 +26,14 @@ def score_jobs_with_llm(jobs: List[Job], query: str) -> List[Job]:
     
     client = genai.Client(api_key=api_key)
     
-    # 1. Prepare Data with simple integer IDs (0, 1, 2...)
-    # This prevents the LLM from messing up complex URL-based IDs.
+    # 1. Prepare Data
     job_payload = []
     for index, j in enumerate(jobs):
-        # Limit description to 400 chars to save tokens
         desc = j.description[:400].strip() if j.description else "No description"
         job_payload.append({
-            "index": index,  # Simple ID for the LLM
+            "index": index,
             "title": j.title,
-            "company": getattr(j, "company", "Unknown"), # Safety check if company field exists
+            "company": getattr(j, "company", "Unknown"),
             "description": desc
         })
 
@@ -65,9 +62,9 @@ def score_jobs_with_llm(jobs: List[Job], query: str) -> List[Job]:
     """
 
     try:
-        # 2. Call Gemini (Using 1.5-Flash for reliability)
+        # 2. Call Gemini
         response = client.models.generate_content(
-            model="gemini-2.5-flash", 
+            model="gemini-2.0-flash", # Updated to latest fast model
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json"
@@ -77,6 +74,12 @@ def score_jobs_with_llm(jobs: List[Job], query: str) -> List[Job]:
         # 3. Parse Response
         raw_text = response.text or "{}"
         scores = json.loads(raw_text)
+        
+        # --- CRITICAL FIX START ---
+        # If AI returns a List [{}, {}], convert it to Dict {"0": {}, "1": {}}
+        if isinstance(scores, list):
+            scores = {str(i): item for i, item in enumerate(scores)}
+        # --- CRITICAL FIX END ---
         
         # 4. Map back to Job Objects
         updated_count = 0
@@ -98,5 +101,4 @@ def score_jobs_with_llm(jobs: List[Job], query: str) -> List[Job]:
 
     except Exception as e:
         print(f"❌ AI Scoring CRASHED: {e}")
-        # Return original jobs so pipeline doesn't break
         return jobs

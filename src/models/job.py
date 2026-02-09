@@ -23,3 +23,4 @@ class Job:
     # Analysis fields (filled by AI later)
     relevance_score: int = 0
     reasoning: str = ""
+    company: str = "Unknown"

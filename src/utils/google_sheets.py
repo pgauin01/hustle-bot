@@ -68,4 +68,5 @@ def log_jobs_to_sheet(jobs, sheet_url):
             print("✅ Successfully logged to Google Sheets.")
             
     except Exception as e:
-        print(f"❌ Failed to log to Sheets: {e}")
+        # Change this line to use repr(e) to see the full error object
+        print(f"❌ Failed to log to Sheets: {repr(e)}")

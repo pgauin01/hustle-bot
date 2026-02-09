@@ -1,54 +1,76 @@
-﻿from dotenv import load_dotenv
+﻿import os
+import sys
+from dotenv import load_dotenv  # <--- NEW IMPORT
 from src.graph.workflow import create_graph
 
-def main():
-    load_dotenv()
-    print("Starting Job Agent...")
+# --- 1. Load Configuration ---
+def load_config():
+    """
+    Loads configuration from .env file.
+    """
+    print("⚙️ Loading configuration from .env...")
     
-    # 1. Initialize the Graph
+    # This finds the .env file in your root folder and loads it
+    load_dotenv()
+
+    # Debug: Check if critical keys are loaded
+    api_key = os.getenv("GOOGLE_API_KEY")
+    sheet_url = os.getenv("GOOGLE_SHEET_URL")
+    tele_token = os.getenv("TELEGRAM_BOT_TOKEN")
+
+    if not api_key:
+        print("❌ ERROR: GOOGLE_API_KEY not found in .env")
+        sys.exit(1)
+        
+    if not sheet_url:
+        print("⚠️ WARNING: GOOGLE_SHEET_URL not found. Logging to Sheets will fail.")
+        
+    if not tele_token:
+        print("⚠️ WARNING: TELEGRAM_BOT_TOKEN not found. Alerts will be skipped.")
+    
+    print("✅ Configuration loaded successfully.")
+
+# --- 2. Main Execution ---
+def main():
+    load_config()
+    
+    print("\n🚀 Starting Job Agent...")
+    
+    # Define your search parameters (You can also move these to .env if you want!)
+    QUERY = os.getenv("SEARCH_QUERY", "Python Developer")
+    MUST_HAVES = os.getenv("MUST_HAVE_KEYWORDS", "").split(",")
+    # Clean up the list (remove empty strings)
+    MUST_HAVES = [k.strip() for k in MUST_HAVES if k.strip()]
+    
+    # Get Upwork URL from .env or ignore
+    upwork_url = os.getenv("UPWORK_RSS_URL")
+
+    # Initialize Graph
     app = create_graph()
     
-    # 2. Define the initial state 
-    # TIP: Use single-word tags for RemoteOK (e.g., "python", "react", "backend")
     initial_state = {
-        "search_query": "python", 
-        "raw_results": [],       
-        "normalized_jobs": [],   
-        "filtered_jobs": [],     
-        "proposals": []          
+        "search_query": QUERY,
+        "must_have_keywords": MUST_HAVES,
+        "upwork_rss_url": upwork_url,
+        "raw_results": [],
+        "normalized_jobs": [],
+        "filtered_jobs": [],
+        "proposals": []
     }
-    
-    # 3. Run the workflow
-    result = app.invoke(initial_state)
-    
-    # 4. Print the results
-    raw_count = len(result["raw_results"])
-    print(f"Execution Finished.")
-    print(f"Total Raw Jobs Collected: {raw_count}")
-    
-    # Show sources breakdown
-    sources = {}
-    for item in result["raw_results"]:
-        src = item["source"]
-        sources[src] = sources.get(src, 0) + 1
-    print(f"Breakdown by Source: {sources}")
-    
-    # Show AI Scores (Top 3)
-    scored = result.get("filtered_jobs", [])
-    if scored:
-        print(f"\n✅ Top 3 AI Recommendations:")
-        for job in scored[:3]:
-            print(f"- [Score: {job.relevance_score}] {job.title} ({job.platform})")
-            print(f"  Reason: {job.reasoning}")
 
-    proposals = result.get("proposals", [])
-    if proposals:
-        print(f"\n✍️  Generated {len(proposals)} Draft Proposals:")
-        print("="*60)
-        for i, draft in enumerate(proposals):
-            print(f"\n--- Proposal {i+1} ---")
-            print(draft.strip())
-            print("="*60)        
+    try:
+        # Run the Workflow
+        results = app.invoke(initial_state)
+        
+        print("\n✅ Execution Finished.")
+        
+        # Summary
+        print(f"Total Jobs Processed: {len(results.get('normalized_jobs', []))}")
+        print(f"Qualified Matches: {len(results.get('filtered_jobs', []))}")
+        print(f"Drafts Generated: {len(results.get('proposals', []))}")
+
+    except Exception as e:
+        print(f"\n❌ Workflow Crashed: {e}")
 
 if __name__ == "__main__":
     main()

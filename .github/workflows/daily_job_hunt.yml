@@ -33,6 +33,8 @@ jobs:
           # Hardcode your settings here for the cloud run
           SEARCH_QUERY: "React Developer"
           MUST_HAVE_KEYWORDS: "React, Typescript"
+          GOOGLE_SHEETS_JSON: ${{ secrets.GOOGLE_SHEETS_JSON }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
         run: |
           # We run a headless version of the script
           python headless_main.py

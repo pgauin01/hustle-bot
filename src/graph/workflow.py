@@ -1,3 +1,4 @@
+import os
 from langgraph.graph import StateGraph, END
 from .state import JobState
 from ..models.job import Job
@@ -9,6 +10,7 @@ from ..platforms.weworkremotely import fetch_weworkremotely
 from ..platforms.upwork import fetch_upwork_api
 from ..utils.filtering import strict_keyword_filter
 from ..notifications.telegram import send_telegram_alert
+from ..utils.google_sheets import log_jobs_to_sheet
 
 # --- 1. Fetchers ---
 
@@ -176,6 +178,19 @@ def notify_user(state: JobState):
             
     return {"proposals": proposals}
 
+# --- . Logger Node (NEW) ---
+def log_results_node(state: JobState):
+    # Get the top jobs (filtered)
+    top_jobs = state.get("filtered_jobs", [])
+    
+    # Get Sheet URL from state (or env var)
+    sheet_url = os.getenv("GOOGLE_SHEET_URL") # We will set this in .env
+    
+    if top_jobs and sheet_url:
+        log_jobs_to_sheet(top_jobs, sheet_url)
+        
+    return {}
+
 # --- 6. Graph Construction ---
 
 def create_graph():
@@ -188,6 +203,7 @@ def create_graph():
     workflow.add_node("scorer", score_jobs)
     workflow.add_node("drafter", draft_proposals_node)
     workflow.add_node("notifier", notify_user)
+    workflow.add_node("logger", log_results_node)
 
     workflow.set_entry_point("remoteok_fetcher") 
     workflow.add_edge("remoteok_fetcher", "wwr_fetcher") # <--- NEW EDGE
@@ -196,6 +212,7 @@ def create_graph():
     workflow.add_edge("normalizer", "scorer")
     workflow.add_edge("scorer", "drafter") # <--- Connect Scorer to Drafter
     workflow.add_edge("drafter", "notifier")
-    workflow.add_edge("drafter", END)      # <--- Drafter ends the flow
+    workflow.add_edge("notifier", "logger")
+    workflow.add_edge("logger", END)      # <--- Logger ends the flow
 
     return workflow.compile()

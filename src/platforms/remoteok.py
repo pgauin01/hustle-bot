@@ -17,7 +17,6 @@ def fetch_from_remoteok(tag: str = "python") -> List[Dict[str, Any]]:
     url = "https://remoteok.com/api"
     
     # RemoteOK works best with single-word tags (e.g., "python", "engineer", "exec").
-    # If the user sends "python developer", we take the first word "python" to ensure results.
     clean_tag = tag.split(" ")[0].lower() if tag else "python"
     
     params = {"tag": clean_tag}
@@ -29,13 +28,27 @@ def fetch_from_remoteok(tag: str = "python") -> List[Dict[str, Any]]:
         response.raise_for_status()
         data = response.json()
         
-        # Filter out the "legal" metadata and ensure items are dictionaries
-        jobs = [
-            item for item in data 
-            if isinstance(item, dict) and "legal" not in item
-        ]
-        
-        # NOTE: RemoteOK provides a "location" field (e.g., "Worldwide", "North America Only")
+        jobs = []
+        for item in data:
+            # Skip the "legal" metadata block
+            if not isinstance(item, dict) or "legal" in item:
+                continue
+                
+            # Create a clean job object (Explicitly handling missing keys)
+            job = {
+                "id": str(item.get("id", item.get("url", ""))),
+                "url": item.get("url", ""),
+                "position": item.get("position", "Unknown Role"),
+                "company": item.get("company", "Unknown"),  # <--- ENSURE THIS IS SET
+                "description": item.get("description", ""),
+                "date": item.get("date", ""),
+                "tags": item.get("tags", []),
+                "location": item.get("location", "Unknown"),
+                "salary_min": item.get("salary_min"),
+                "salary_max": item.get("salary_max")
+            }
+            jobs.append(job)
+            
         return jobs
     
     except Exception as e:

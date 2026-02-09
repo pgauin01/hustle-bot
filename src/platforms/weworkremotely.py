@@ -2,18 +2,13 @@ import feedparser
 import ssl
 from typing import List, Dict, Any
 
-# Fix for SSL certificate errors on some machines
+# Fix for SSL certificate errors
 if hasattr(ssl, '_create_unverified_context'):
     ssl._create_default_https_context = ssl._create_unverified_context
 
 RSS_URL = "https://weworkremotely.com/categories/remote-programming-jobs.rss"
 
 def fetch_weworkremotely(tag: str = None) -> List[Dict[str, Any]]:
-    """
-    Fetches jobs from WeWorkRemotely RSS feed.
-    Note: WWR RSS doesn't support tag filtering directly in the URL, 
-    so we fetch all and filter in Python if needed.
-    """
     print(f"📡 Connecting to WeWorkRemotely RSS...")
     
     try:
@@ -21,11 +16,24 @@ def fetch_weworkremotely(tag: str = None) -> List[Dict[str, Any]]:
         jobs = []
         
         for entry in feed.entries:
-            # WWR Title format is usually: "Job Title: Company Name" or similar
-            # We will leave cleaning to the normalizer, just grab raw data
+            # 1. Attempt to extract Company Name
+            company = "Unknown"
+            
+            # Strategy A: Check 'author' field (Common in RSS)
+            if hasattr(entry, 'author') and entry.author:
+                company = entry.author
+            
+            # Strategy B: Check if Title is "Company: Role"
+            elif ":" in entry.title:
+                parts = entry.title.split(":")
+                # Heuristic: Company is usually the shorter part at the start
+                if len(parts[0]) < 50:
+                    company = parts[0].strip()
+
             job = {
                 "id": entry.id,
                 "title": entry.title,
+                "company": company,  # <--- Storing it here
                 "link": entry.link,
                 "description": entry.description,
                 "published": entry.published

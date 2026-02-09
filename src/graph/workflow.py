@@ -48,7 +48,6 @@ def fetch_wwr(state: JobState):
         return {"raw_results": []}
 
 # --- 2. The Normalizer ---
-
 def normalize_data(state: JobState):
     raw_results = state.get("raw_results", [])
     normalized_jobs = []
@@ -65,6 +64,11 @@ def normalize_data(state: JobState):
                     id=str(payload.get("id", payload.get("url", ""))),
                     platform="remoteok",
                     title=payload.get("position", "Unknown"),
+                    
+                    # --- FIX 1: Map RemoteOK Company ---
+                    company=payload.get("company", "Unknown"), 
+                    # -----------------------------------
+                    
                     description=clean_html(payload.get("description", "")),
                     url=payload.get("url", ""),
                     budget_min=float(payload.get("salary_min") or 0),
@@ -81,6 +85,12 @@ def normalize_data(state: JobState):
                     id=payload.get("id") or payload.get("link", ""),
                     platform="upwork",
                     title=payload.get("title", "Unknown"),
+                    
+                    # --- FIX 2: Map Upwork Company (If available) ---
+                    # Upwork RSS rarely gives company names publicly, but we set a default
+                    company="Upwork Client", 
+                    # ------------------------------------------------
+                    
                     description=clean_html(payload.get("description", "")),
                     url=payload.get("link", ""),
                     budget_min=float(payload.get("budget_min") or 0.0),
@@ -96,9 +106,14 @@ def normalize_data(state: JobState):
                     id=payload.get("id"),
                     platform="weworkremotely",
                     title=payload.get("title", "Unknown"),
+                    
+                    # --- FIX 3: Map WWR Company ---
+                    company=payload.get("company", "Unknown"),
+                    # ------------------------------
+                    
                     description=clean_html(payload.get("description", "")),
                     url=payload.get("link", ""),
-                    budget_min=0.0, # WWR rarely lists salary in metadata
+                    budget_min=0.0,
                     budget_max=0.0,
                     skills=[], 
                     posted_at=payload.get("published")

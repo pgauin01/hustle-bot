@@ -1,280 +1,261 @@
 import streamlit as st
-import pandas as pd
 import os
-from src.graph.workflow import create_graph
-from dotenv import load_dotenv
-from src.llm.query_generator import generate_search_queries
 import json
+import pandas as pd
+from datetime import datetime
 
-# Load .env into process environment (so os.getenv works)
-load_dotenv()
+# Import your "Brain" - The Graph
+from src.graph.workflow import create_graph
+
+# Try importing Gemini for the suggestion feature
+try:
+    from google import genai
+except ImportError:
+    genai = None
 
 # Page Config
-st.set_page_config(page_title="HustleBot", page_icon="💼", layout="wide")
+st.set_page_config(page_title="HustleBot 2.1", page_icon="💼", layout="wide")
 
-# Custom CSS for a cleaner look
-st.markdown("""
-    <style>
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; }
-    .job-card { padding: 20px; border-radius: 10px; border: 1px solid #e0e0e0; margin-bottom: 20px; }
-    .score-high { color: #008000; font-weight: bold; }
-    .score-med { color: #ffa500; font-weight: bold; }
-    .score-low { color: #ff0000; font-weight: bold; }
-    </style>
-""", unsafe_allow_html=True)
-
-def load_settings():
-    if os.path.exists("user_settings.json"):
-        with open("user_settings.json", "r") as f:
-            return json.load(f)
-    return {"upwork_url": "", "api_key": ""}
-
-def save_settings(upwork_url, api_key):
-    with open("user_settings.json", "w") as f:
-        json.dump({"upwork_url": upwork_url, "api_key": api_key}, f)
-
-def main():
-    saved_config = load_settings()
+# --- HELPER: ROLE SUGGESTER ---
+def suggest_roles(api_key, skills):
+    """
+    Uses Gemini to brainstorm job titles based on skills.
+    """
+    if not api_key:
+        st.warning("⚠️ Please enter your Google API Key in the sidebar first!")
+        return []
     
-    # --- SIDEBAR DESIGN START ---
-    with st.sidebar:
-        st.title("🤖 HustleBot")
-        st.caption("Your AI Job Agent")
-        # st.divider()
+    if not genai:
+        st.error("❌ google-genai library not found. Run: pip install google-genai")
+        return []
 
-        # 1. SEARCH SECTION (Prominent)
-        st.markdown("### 🎯 Job Search")
+    try:
+        client = genai.Client(api_key=api_key)
+        prompt = f"""
+        Act as a Tech Recruiter.
+        Based on these skills: "{skills}"
+        Suggest 5 concise, standard job titles that I should search for on job boards.
+        Return ONLY a comma-separated list of titles. 
+        Example Output: Python Developer, Backend Engineer, AI Engineer
+        """
         
-        # Auto-Suggest Logic
-        if st.button("✨ Auto-Suggest Strategy", type="secondary", use_container_width=True):
-            with st.spinner("Analyzing profile..."):
-                suggestions = generate_search_queries()
-                st.session_state['query_suggestions'] = suggestions
-        
-        if 'query_suggestions' in st.session_state:
-            selected = st.pills("Suggested Strategies:", st.session_state['query_suggestions'], selection_mode="single")
-            if selected:
-                st.session_state['current_query'] = selected
-
-        default_query = st.session_state.get('current_query', "python developer")
-        query = st.text_input("Target Role", value=default_query)
-
-        st.markdown("### 🛡️ Hard Filters")
-        keywords_str = st.text_input(
-            "Must-Have Keywords (comma separated)", 
-            placeholder="e.g. Django, Remote, AWS",
-            help="Jobs MISSING these words will be instantly rejected."
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
         )
         
-        # Parse string into list
-        must_haves = [k.strip() for k in keywords_str.split(",")] if keywords_str else []
+        # Clean up text
+        text = response.text.strip()
+        return [t.strip() for t in text.split(",") if t.strip()]
         
-        # Primary Action Button
-        st.write("") # Spacer
-        run_btn = st.button("🚀 Find Jobs", type="primary", use_container_width=True)
-        
-        st.divider()
+    except Exception as e:
+        st.error(f"AI Error: {e}")
+        return []
 
-        # 2. CONFIGURATION SECTION (Collapsible)
-        with st.expander("⚙️ Settings & Keys", expanded=False):
-            st.info("Configure your keys once and save.")
-            
-            # API Key
-            # Upwork Link
-            upwork_url_input = st.text_input("Upwork RSS Link", value=saved_config.get("upwork_url", ""))
-            if upwork_url_input:
-                st.caption("✅ Upwork Linked")
-            else:
-                st.caption("❌ Upwork Not Linked (Mock Mode)")
-                
-            if st.button("💾 Save Config"):
-                save_settings(upwork_url_input)
-                st.success("Saved!")
-
-            # --- NEW TELEGRAM SECTION ---
-            st.markdown("---")
-            st.caption("📱 Telegram Alerts")
-            tele_token = st.text_input("Bot Token", value=saved_config.get("tele_token", ""), type="password")
-            tele_chat = st.text_input("Chat ID", value=saved_config.get("tele_chat", ""))
-            
-            if tele_token and tele_chat:
-                os.environ["TELEGRAM_BOT_TOKEN"] = tele_token
-                os.environ["TELEGRAM_CHAT_ID"] = tele_chat
-            # -----------------------------
-
-            if st.button("💾 Save Config", key="save_config_btn"):
-                # Save all 4 values now
-                new_config = {
-                    "tele_token": tele_token,
-                    "tele_chat": tele_chat
-                }
-                with open("user_settings.json", "w") as f:
-                    json.dump(new_config, f)
-                st.success("Saved!")    
-
-        # 3. PROFILE PREVIEW (Mini)
-        with st.expander("👤 My Profile", expanded=False):
-            # Load current profile text
-            try:
-                with open("profile.md", "r") as f:
-                    current_profile = f.read()
-            except FileNotFoundError:
-                current_profile = ""
-
-            # Show the text area for editing
-            new_profile = st.text_area("Your Bio / Skills", value=current_profile, height=150)
-            
-            # Save Button
-            if st.button("💾 Save Profile"):
-                with open("profile.md", "w") as f:
-                    f.write(new_profile)
-                st.success("Profile Updated!")
-                # Force a rerun so the new profile is immediately used
-                st.rerun()
-
-        # Footer Status
-        st.divider()
-        st.markdown("Sources Active:")
-        st.markdown("🟢 RemoteOK")
-        st.markdown("🟢 WeWorkRemotely")
-        if saved_config.get("upwork_url"):
-            st.markdown("🟢 Upwork (Live)")
+# --- SIDEBAR: SETTINGS ---
+with st.sidebar:
+    st.header("⚙️ Agent Settings")
+    
+    with st.expander("🔑 API Keys & Config", expanded=True):
+        # Load existing settings
+        if os.path.exists("user_settings.json"):
+            with open("user_settings.json", "r") as f:
+                settings = json.load(f)
         else:
-            st.markdown("🔴 Upwork (Mock)")
+            settings = {}
 
-    # Main Area
-    st.title(f"Jobs for: *{query}*")
-
-    if run_btn:
-        # Create a container to show progress
-        status_box = st.status("🚀 Agent Active...", expanded=True)
+        # Input Fields
+        api_key = st.text_input("Google API Key", value=settings.get("api_key", ""), type="password")
+        sheet_url = st.text_input("Google Sheet URL", value=settings.get("sheet_url", ""), placeholder="https://docs.google.com/...")
+        tele_token = st.text_input("Telegram Bot Token", value=settings.get("tele_token", ""), type="password")
+        tele_chat = st.text_input("Telegram Chat ID", value=settings.get("tele_chat", ""))
         
-        try:
-            # 1. Init Graph
-            app = create_graph()
-            
-            initial_state = {
-                "search_query": query,
-                "upwork_rss_url": saved_config.get("upwork_url", ""),
-                "raw_results": [],
-                "normalized_jobs": [],
-                "filtered_jobs": [],
-                "proposals": [],
-                "must_have_keywords": must_haves,
+        # Save Button
+        if st.button("💾 Save Settings"):
+            new_settings = {
+                "api_key": api_key,
+                "sheet_url": sheet_url,
+                "tele_token": tele_token,
+                "tele_chat": tele_chat
             }
+            with open("user_settings.json", "w") as f:
+                json.dump(new_settings, f)
+            st.success("Saved!")
+            st.rerun()
 
-            # 2. Run Workflow with Streaming
-            # We use a dictionary to accumulate the final results as they come in
-            final_state = {} 
+    # Apply Keys to Environment for this session
+    if api_key: os.environ["GOOGLE_API_KEY"] = api_key
+    if sheet_url: os.environ["GOOGLE_SHEET_URL"] = sheet_url
+    if tele_token: os.environ["TELEGRAM_BOT_TOKEN"] = tele_token
+    if tele_chat: os.environ["TELEGRAM_CHAT_ID"] = tele_chat
+
+# --- MAIN PAGE ---
+st.title("🤖 HustleBot: Autonomous Recruiter")
+st.markdown("Your AI agent that finds, filters, logs, and applies to jobs for you.")
+
+# Tabs for different views
+tab_run, tab_jobs, tab_resumes, tab_proposals = st.tabs(["🚀 Run Agent", "📊 Job Matches", "📝 Tailored Resumes", "✍️ Cover Letters"])
+
+# --- TAB 1: RUN AGENT ---
+with tab_run:
+    col1, col2 = st.columns([1, 2])
+    
+    # --- INPUT COLUMN ---
+    with col1:
+        st.subheader("🎯 Target")
+        
+        # Initialize session state for role if not exists
+        if "suggested_role" not in st.session_state:
+            st.session_state["suggested_role"] = "Python Developer"
+
+        # The Inputs
+        query = st.text_input("Job Role", value=st.session_state["suggested_role"])
+        keywords = st.text_input("Must-Have Skills", value="Python, Django")
+        
+        # --- NEW: AUTO-SUGGEST FEATURE ---
+        with st.expander("✨ Need help with the role?"):
+            if st.button("Brainstorm Roles based on Skills"):
+                if not keywords:
+                    st.warning("Enter some skills above first!")
+                else:
+                    with st.spinner("Thinking..."):
+                        suggestions = suggest_roles(api_key, keywords)
+                        st.session_state["role_suggestions"] = suggestions
             
-            for event in app.stream(initial_state):
-                # 'event' is a dict like: {'remoteok_fetcher': {'raw_results': [...]}}
-                for node_name, output in event.items():
+            # Display Suggestions as clickable buttons
+            if "role_suggestions" in st.session_state and st.session_state["role_suggestions"]:
+                st.caption("Click to apply:")
+                for role in st.session_state["role_suggestions"]:
+                    if st.button(f"📍 {role}", use_container_width=True):
+                        st.session_state["suggested_role"] = role
+                        st.rerun()
+        # ---------------------------------
 
-                    if output is None:
-                        continue
+        st.markdown("---")
+        run_btn = st.button("🚀 Start Job Hunt", type="primary", use_container_width=True)
+
+    # --- STATUS COLUMN ---
+    with col2:
+        if run_btn:
+            st.subheader("⚙️ Execution Log")
+            status_container = st.container()
+            with status_container:
+                st.info("Starting Workflow...")
+                
+                # 1. Setup Inputs
+                must_haves = [k.strip() for k in keywords.split(",") if k.strip()]
+                initial_state = {
+                    "search_query": query,
+                    "must_have_keywords": must_haves,
+                    "raw_results": [],
+                    "normalized_jobs": [],
+                    "filtered_jobs": [],
+                    "proposals": []
+                }
+
+                # 2. Run the Graph (The Brain)
+                try:
+                    app = create_graph()
+                    final_state = app.invoke(initial_state)
                     
-                    # Update our local state copy
-                    final_state.update(output)
+                    # 3. Store results
+                    st.session_state["results"] = final_state
+                    st.success("✅ Workflow Complete!")
                     
-                    # --- DYNAMIC UI UPDATES ---
-                    if node_name == "remoteok_fetcher":
-                        count = len(output.get('raw_results', []))
-                        status_box.write(f"✅ RemoteOK found {count} jobs.")
-                        
-                    elif node_name == "wwr_fetcher":
-                        count = len(output.get('raw_results', []))
-                        status_box.write(f"✅ WeWorkRemotely found {count} jobs.")
-                        
-                    elif node_name == "upwork_fetcher":
-                        count = len(output.get('raw_results', []))
-                        status_box.write(f"✅ Upwork found {count} jobs.")
-                        
-                    elif node_name == "normalizer":
-                        count = len(output.get('normalized_jobs', []))
-                        status_box.write(f"🔄 Cleaned & Normalized {count} jobs.")
-                        
-                    elif node_name == "scorer":
-                        # The scorer outputs 'filtered_jobs' (the ones that passed)
-                        # But we might want to know how many were scored total
-                        scored_count = len(output.get('filtered_jobs', []))
-                        status_box.write(f"🧠 AI Scored & Filtered jobs. (Top {scored_count} retained)")
-                        
-                    elif node_name == "drafter":
-                        draft_count = len(output.get('proposals', []))
-                        status_box.write(f"✍️ Generated {draft_count} Draft Proposals.")
+                except Exception as e:
+                    st.error(f"❌ Workflow Failed: {e}")
 
-            # 3. Finalize
-            status_box.update(label="✅ Workflow Complete!", state="complete", expanded=False)
+# --- TAB 2: JOB MATCHES ---
+with tab_jobs:
+    if "results" in st.session_state:
+        results = st.session_state["results"]
+        jobs = results.get("filtered_jobs", [])
+        
+        if not jobs:
+            st.warning("No jobs found matching your criteria.")
+        else:
+            st.metric("Qualified Matches", len(jobs))
             
-            # Store results in session state
-            st.session_state['results'] = final_state
-            st.success("Analysis Complete!")
-            
-        except Exception as e:
-            status_box.update(label="❌ Workflow Failed", state="error")
-            st.error(f"Error: {e}")
-
-    # Display Results if they exist
-    if 'results' in st.session_state:
-        result = st.session_state['results']
-        all_jobs = result.get("normalized_jobs", [])
-        top_jobs = result.get("filtered_jobs", [])
-        proposals = result.get("proposals", [])
-
-        # Metrics Row
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Jobs Found", len(all_jobs))
-        col2.metric("Qualified Matches (>70%)", len(top_jobs))
-        col3.metric("Drafts Generated", len(proposals))
-
-        # Tabs
-        tab1, tab2 = st.tabs(["🏆 Top Picks & Proposals", "📊 All Jobs Data"])
-
-        with tab1:
-            if not top_jobs:
-                st.warning("No jobs met the quality threshold.")
-            else:
-                # Top Picks Loop
-                for i, job in enumerate(top_jobs[:5]): # Show top 5
-                    with st.container():
-                        # Determine score color
-                        score = job.relevance_score
-                        color = "green" if score > 80 else "orange"
-                        
-                        # Layout
-                        c1, c2 = st.columns([3, 1])
-                        with c1:
-                            st.subheader(f"{i+1}. {job.title}")
-                            st.caption(f"📍 {getattr(job, 'company', 'Unknown')} | 🔗 [View Job]({job.url})")
-                            st.write(f"**Why:** {job.reasoning}")
-                        with c2:
-                            st.markdown(f"## :{color}[{score}/100]")
-                        
-                        # Proposal Draft (if available for this job)
-                        # We assume proposals align with the top jobs list
-                        if i < len(proposals):
-                            with st.expander("📝 View AI Draft Proposal"):
-                                st.text_area("Copy this:", value=proposals[i], height=300)
-                        
-                        st.divider()
-
-        with tab2:
-            # Data Table view
             data = []
-            for j in all_jobs:
+            for j in jobs:
+                comp = getattr(j, 'company', 'Unknown')
                 data.append({
                     "Score": j.relevance_score,
-                    "Title": j.title,
-                    "Platform": j.platform,
-                    "Budget/Salary": f"{j.budget_min} - {j.budget_max}" if j.budget_max > 0 else "Not listed",
-                    "URL": j.url
+                    "Role": j.title,
+                    "Company": comp,
+                    "Why": j.reasoning,
+                    "Link": j.url
                 })
+            
             df = pd.DataFrame(data)
-            # Sort by score
-            df = df.sort_values(by="Score", ascending=False)
-            st.dataframe(df, use_container_width=True)
+            
+            st.dataframe(
+                df, 
+                column_config={
+                    "Link": st.column_config.LinkColumn("Apply Url"),
+                    "Score": st.column_config.ProgressColumn("Relevance", min_value=0, max_value=100)
+                },
+                hide_index=True,
+                use_container_width=True
+            )
+    else:
+        st.info("Run the agent to see results.")
 
-if __name__ == "__main__":
-    main()
+# --- TAB 3: TAILORED RESUMES ---
+with tab_resumes:
+    st.subheader("📂 Generated Resumes")
+    folder_path = "generated_resumes"
+    
+    if not os.path.exists(folder_path):
+        st.warning("No 'generated_resumes' folder found. Run the agent to generate some!")
+    else:
+        files = [f for f in os.listdir(folder_path) if f.endswith(".md")]
+        
+        if not files:
+            st.info("No resumes generated yet. (Did any job score > 85?)")
+        else:
+            for filename in files:
+                file_path = os.path.join(folder_path, filename)
+                
+                with st.expander(f"📄 {filename}", expanded=False):
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        
+                        st.markdown("### Preview")
+                        st.code(content[:500] + "...", language="markdown") 
+                        
+                        st.download_button(
+                            label="⬇️ Download Markdown",
+                            data=content,
+                            file_name=filename,
+                            mime="text/markdown"
+                        )
+                    except Exception as e:
+                        st.error(f"Error reading file: {e}")
 
+# --- TAB 4: DRAFTED PROPOSALS (NEW) ---
+with tab_proposals:
+    st.subheader("✉️ Drafted Cover Letters")
+    
+    if "results" in st.session_state:
+        results = st.session_state["results"]
+        proposals = results.get("proposals", [])
+        jobs = results.get("filtered_jobs", [])
+        
+        if not proposals:
+            st.info("No proposals generated yet. (Did any job score high enough?)")
+        else:
+            # We assume the order of proposals matches the top jobs
+            for i, letter in enumerate(proposals):
+                # Try to get the matching job title if possible
+                job_title = "Unknown Role"
+                if i < len(jobs):
+                    job_title = f"{jobs[i].title} at {getattr(jobs[i], 'company', 'Unknown')}"
+                
+                with st.expander(f"Draft #{i+1}: {job_title}", expanded=False):
+                    st.text_area("Copy this:", value=letter, height=300)
+                    if i < len(jobs):
+                         st.caption(f"Apply Link: {jobs[i].url}")
+    else:
+        st.info("Run the agent to see generated proposals.")                        

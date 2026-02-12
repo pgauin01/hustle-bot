@@ -4,11 +4,9 @@ from .state import JobState
 from ..models.job import Job
 from ..utils.cleaning import clean_html
 from ..llm.scoring import score_jobs_with_llm
-from ..utils.filtering import strict_keyword_filter
 from ..utils.google_sheets import log_jobs_to_sheet
-from ..llm.resume_tailor import tailor_resume
-from ..utils.file_manager import save_tailored_resume
 from ..utils.history import load_history
+from ..notifications.telegram import send_telegram_alert 
 
 # --- PLATFORM IMPORTS ---
 from ..platforms.remoteok import fetch_from_remoteok
@@ -17,7 +15,6 @@ from ..platforms.upwork import fetch_upwork_api
 from ..platforms.freelancer import fetch_freelancer_api
 
 # --- 1. Fetchers ---
-
 def fetch_remoteok(state: JobState):
     query = state.get("search_query", "python")
     print(f"🌍 Fetching RemoteOK for '{query}'...")
@@ -63,7 +60,6 @@ def fetch_freelancer(state: JobState):
         return {"raw_results": existing_jobs}
 
 # --- 2. Normalizer ---
-
 def normalize_data(state: JobState):
     raw_results = state.get("raw_results", [])
     normalized_jobs = []
@@ -149,6 +145,7 @@ def normalize_data(state: JobState):
 def score_jobs(state: JobState):
     normalized = state.get("normalized_jobs", [])
     query = state.get("search_query", "Python Developer")
+    from ..utils.filtering import strict_keyword_filter 
     must_haves = state.get("must_have_keywords", [])
     
     if not normalized: return {"filtered_jobs": []}
@@ -159,64 +156,80 @@ def score_jobs(state: JobState):
     scored = score_jobs_with_llm(technically_qualified, query)
     return {"filtered_jobs": scored}
 
-# --- 4. Resume Tailor ---
-def tailor_node(state: JobState):
-    top_jobs = state.get("filtered_jobs", [])
-    try:
-        with open("profile.md", "r", encoding="utf-8") as f:
-            base_resume = f.read()
-    except:
-        print("⚠️ Profile.md not found, skipping resume tailoring.")
+# --- 4. Notifier ---
+def notify_user(state: JobState):
+    all_jobs = state.get("filtered_jobs", [])
+    
+    # Only notify for HIGH VALUE jobs (> 75)
+    high_value = [j for j in all_jobs if j.relevance_score >= 75]
+
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    if not token or not chat_id:
+        print("⚠️ Telegram keys missing, skipping alerts.")
+        return {}
+        
+    if not high_value:
+        print("🔕 No jobs met the score threshold (75+) for Telegram alerts.")
         return {}
 
-    tailored_paths = []
-    print(f"👔 Checking {len(top_jobs)} jobs for tailoring candidates (Score >= 85)...")
-    
-    for job in top_jobs:
-        if job.relevance_score >= 85:
-            try:
-                new_resume = tailor_resume(job, base_resume)
-                path = save_tailored_resume(new_resume, job.company, job.title)
-                tailored_paths.append(path)
-            except Exception as e:
-                print(f"   ❌ Failed to generate/save: {e}")
+    print(f"🔔 Sending Telegram alerts for {len(high_value)} jobs...")
+    for job in high_value:
+        try:
+            send_telegram_alert(job.title, job.url, job.relevance_score, job.reasoning, "[View in Dashboard]")
+        except Exception:
+            pass # Don't crash on notification failure
+            
+    return {}
 
-    return {"tailored_resumes": tailored_paths}
-
-# --- 5. Logger ---
+# --- 5. Logger (Clean Sheet Mode) ---
 def log_results_node(state: JobState):
     top_jobs = state.get("filtered_jobs", [])
     sheet_url = os.getenv("GOOGLE_SHEET_URL")
-    if top_jobs and sheet_url:
-        log_jobs_to_sheet(top_jobs, sheet_url)
+    
+    if not sheet_url: 
+        print("⚠️ No Google Sheet URL provided, skipping logging.")
+        return {}
+
+    # --- FILTER: Only log decent jobs (Score > 50) ---
+    # This keeps your sheet clean from "junk" matches.
+    worthy_jobs = [j for j in top_jobs if j.relevance_score > 50]
+
+    if worthy_jobs:
+        print(f"📝 Logging {len(worthy_jobs)} qualified jobs (Score > 50) to Google Sheets...")
+        try:
+            log_jobs_to_sheet(worthy_jobs, sheet_url)
+            print("✅ Successfully logged.")
+        except Exception as e:
+            print(f"❌ Google Sheet Logging Failed: {e}")
+            print("   (Continuing workflow so you can still see jobs in Dashboard)")
+    else:
+        print("📉 No jobs scored high enough (>50) to be logged.")
+            
     return {}
 
 # --- 6. Graph Construction ---
-
 def create_graph():
     workflow = StateGraph(JobState)
 
-    # Add Nodes
     workflow.add_node("remoteok_fetcher", fetch_remoteok)
     workflow.add_node("wwr_fetcher", fetch_wwr)
     workflow.add_node("upwork_fetcher", fetch_upwork)
     workflow.add_node("freelancer_fetcher", fetch_freelancer) 
-    
     workflow.add_node("normalizer", normalize_data)
     workflow.add_node("scorer", score_jobs)
-    workflow.add_node("tailor", tailor_node)
+    workflow.add_node("notifier", notify_user)
     workflow.add_node("logger", log_results_node)
 
-    # Chain Sequence (No Drafter/Notifier)
     workflow.set_entry_point("remoteok_fetcher") 
     workflow.add_edge("remoteok_fetcher", "wwr_fetcher")
     workflow.add_edge("wwr_fetcher", "upwork_fetcher")   
     workflow.add_edge("upwork_fetcher", "freelancer_fetcher")
     workflow.add_edge("freelancer_fetcher", "normalizer") 
-    
     workflow.add_edge("normalizer", "scorer")
-    workflow.add_edge("scorer", "tailor")  
-    workflow.add_edge("tailor", "logger")
+    workflow.add_edge("scorer", "notifier")
+    workflow.add_edge("notifier", "logger")
     workflow.add_edge("logger", END)      
 
     return workflow.compile()

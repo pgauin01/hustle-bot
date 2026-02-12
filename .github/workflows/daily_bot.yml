@@ -1,0 +1,31 @@
+name: Daily HustleBot
+
+on:
+  schedule:
+    # Runs at 09:00 UTC every day
+    - cron: "0 4 * * *" # 09:00 UTC is 09:30 IST
+  workflow_dispatch: # Allows you to click "Run Now" manually for testing
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Bot
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_SHEET_URL: ${{ secrets.GOOGLE_SHEET_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python automate.py --once

@@ -2,16 +2,19 @@ import streamlit as st
 import os
 import json
 import pandas as pd
+import altair as alt # <--- New Import for Charts
 from datetime import datetime
 
 # --- IMPORTS ---
 from src.graph.workflow import create_graph
 from src.utils.history import save_to_history, get_history_stats
-from src.llm.proposal import generate_proposals  # <--- Import Generator
+from src.llm.proposal import generate_proposals
+from src.llm.resume_tailor import tailor_resume
+from src.utils.file_manager import save_tailored_resume
 
-# Try importing Gemini
+# --- FIX: USE STANDARD GOOGLE LIBRARY ---
 try:
-    from google import genai
+    import google.generativeai as genai
 except ImportError:
     genai = None
 
@@ -20,52 +23,37 @@ st.set_page_config(page_title="HustleBot 2.3", page_icon="💼", layout="wide")
 
 # --- HELPER: ROLE SUGGESTER ---
 def suggest_roles(api_key, skills):
-    if not api_key:
-        st.warning("⚠️ Please enter your Google API Key in the sidebar first!")
-        return []
-    if not genai:
-        st.error("❌ google-genai library not found. Run: pip install google-genai")
-        return []
+    if not api_key: return []
+    if not genai: return []
     try:
-        client = genai.Client(api_key=api_key)
-        prompt = f"""
-        Act as a Tech Recruiter.
-        Based on these skills: "{skills}"
-        Suggest 5 concise, standard job titles that I should search for on job boards.
-        Return ONLY a comma-separated list of titles. 
-        Example Output: Python Developer, Backend Engineer, AI Engineer
-        """
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-        text = response.text.strip()
-        return [t.strip() for t in text.split(",") if t.strip()]
-    except Exception as e:
-        st.error(f"AI Error: {e}")
-        return []
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        prompt = f"Suggest 5 concise job titles for: {skills}. Return comma-separated."
+        response = model.generate_content(prompt)
+        return [t.strip() for t in response.text.strip().split(",") if t.strip()]
+    except Exception as e: return []
 
-# --- SIDEBAR: SETTINGS ---
+def load_profile():
+    if os.path.exists("profile.md"):
+        with open("profile.md", "r", encoding="utf-8") as f: return f.read()
+    return None
+
+# --- SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Agent Settings")
+    st.header("⚙️ Settings")
     with st.expander("🔑 Config", expanded=True):
         if os.path.exists("user_settings.json"):
-            with open("user_settings.json", "r") as f:
-                settings = json.load(f)
-        else:
-            settings = {}
+            with open("user_settings.json", "r") as f: settings = json.load(f)
+        else: settings = {}
 
         api_key = st.text_input("Google API Key", value=settings.get("api_key", ""), type="password")
-        sheet_url = st.text_input("Google Sheet URL", value=settings.get("sheet_url", ""), placeholder="https://docs.google.com/...")
+        sheet_url = st.text_input("Google Sheet URL", value=settings.get("sheet_url", ""))
         tele_token = st.text_input("Telegram Bot Token", value=settings.get("tele_token", ""), type="password")
         tele_chat = st.text_input("Telegram Chat ID", value=settings.get("tele_chat", ""))
         
         if st.button("💾 Save Settings"):
-            new_settings = {
-                "api_key": api_key,
-                "sheet_url": sheet_url,
-                "tele_token": tele_token,
-                "tele_chat": tele_chat
-            }
             with open("user_settings.json", "w") as f:
-                json.dump(new_settings, f)
+                json.dump({"api_key": api_key, "sheet_url": sheet_url, "tele_token": tele_token, "tele_chat": tele_chat}, f)
             st.success("Saved!")
             st.rerun()
 
@@ -74,181 +62,182 @@ with st.sidebar:
     if tele_token: os.environ["TELEGRAM_BOT_TOKEN"] = tele_token
     if tele_chat: os.environ["TELEGRAM_CHAT_ID"] = tele_chat
 
-# --- MAIN PAGE HEADER ---
+# --- MAIN PAGE ---
 st.title("🤖 HustleBot: Autonomous Recruiter")
-
-# Display Active Platforms
 st.markdown("### 📡 Active Data Sources")
-col1, col2, col3, col4 = st.columns(4)
-with col1: st.info("✅ RemoteOK")
-with col2: st.info("✅ WeWorkRemotely")
-with col3: st.info("✅ Upwork (RSS)")
-with col4: st.info("✅ Freelancer.com")
-
+c1, c2, c3 = st.columns(3)
+with c1: st.info("✅ RemoteOK")
+with c2: st.info("✅ WeWorkRemotely")
+with c3: st.info("✅ Freelancer.com")
 st.markdown("---")
 
-# --- DEFINING TABS ---
-# We brought back the "Cover Letters" tab!
-tab_run, tab_jobs, tab_resumes, tab_letters = st.tabs(["🚀 Run Agent", "📊 Job Matches", "📝 Tailored Resumes", "✉️ Cover Letters"])
+# --- TABS (Added Analytics) ---
+tab_run, tab_jobs, tab_analytics, tab_resumes, tab_letters = st.tabs(["🚀 Run Agent", "📊 Job Matches", "📈 Market Insights", "📝 Tailored Resumes", "✉️ Cover Letters"])
 
-# --- TAB 1: RUN AGENT ---
+# --- TAB 1: RUN ---
 with tab_run:
     col1, col2 = st.columns([1, 2])
-    
     with col1:
         st.subheader("🎯 Target")
-        if "suggested_role" not in st.session_state:
-            st.session_state["suggested_role"] = "Python Developer"
-
+        if "suggested_role" not in st.session_state: st.session_state["suggested_role"] = "Python Developer"
         query = st.text_input("Job Role", value=st.session_state["suggested_role"])
         keywords = st.text_input("Must-Have Skills", value="Python, Django")
         
         with st.expander("✨ Need help with the role?"):
             if st.button("Brainstorm Roles"):
-                if not keywords:
-                    st.warning("Enter some skills first!")
-                else:
-                    with st.spinner("Thinking..."):
-                        suggestions = suggest_roles(api_key, keywords)
-                        st.session_state["role_suggestions"] = suggestions
-            
-            if "role_suggestions" in st.session_state and st.session_state["role_suggestions"]:
-                st.caption("Click to apply:")
+                st.session_state["role_suggestions"] = suggest_roles(api_key, keywords)
+            if "role_suggestions" in st.session_state:
                 for role in st.session_state["role_suggestions"]:
-                    if st.button(f"📍 {role}", use_container_width=True):
+                    if st.button(f"📍 {role}"): 
                         st.session_state["suggested_role"] = role
                         st.rerun()
-
         st.markdown("---")
         run_btn = st.button("🚀 Start Job Hunt", type="primary", use_container_width=True)
 
     with col2:
         if run_btn:
             st.subheader("⚙️ Execution Log")
-            status_container = st.container()
-            with status_container:
+            with st.container():
                 st.info("Starting Workflow...")
                 must_haves = [k.strip() for k in keywords.split(",") if k.strip()]
-                
-                initial_state = {
-                    "search_query": query,
-                    "must_have_keywords": must_haves,
-                    "raw_results": [],
-                    "normalized_jobs": [],
-                    "filtered_jobs": [],
-                    # We removed 'proposals' list here because we generate them on-demand now
-                }
-
+                initial_state = {"search_query": query, "must_have_keywords": must_haves, "raw_results": [], "normalized_jobs": [], "filtered_jobs": []}
                 try:
                     app = create_graph()
                     final_state = app.invoke(initial_state)
                     st.session_state["results"] = final_state
                     st.success("✅ Workflow Complete!")
-                except Exception as e:
-                    st.error(f"❌ Workflow Failed: {e}")
+                except Exception as e: st.error(f"❌ Workflow Failed: {e}")
 
-# --- TAB 2: JOB MATCHES (With On-Demand Generation) ---
+# --- TAB 2: JOBS ---
 with tab_jobs:
     if "results" in st.session_state:
         results = st.session_state["results"]
         jobs = results.get("filtered_jobs", [])
-        
-        # Stats
         ignored_count = get_history_stats()
         st.caption(f"🛡️ History Filter Active: {ignored_count} jobs ignored.")
 
         if not jobs:
-            st.info("🎉 No new jobs to review! (All caught up)")
+            st.info("🎉 No new jobs to review!")
         else:
             st.metric("New Qualified Matches", len(jobs))
-            
             for i, job in enumerate(jobs):
                 with st.expander(f"{job.title} @ {getattr(job, 'company', 'Unknown')} ({job.relevance_score}/100)", expanded=True):
                     c1, c2 = st.columns([3, 1])
-                    
                     with c1:
                         st.markdown(f"**Platform:** {job.platform}")
                         st.markdown(f"**Why:** {job.reasoning}")
                         st.markdown(f"[🔗 **Apply Now**]({job.url})")
-                        
-                        # --- SHOW DRAFT IF EXISTS ---
-                        # Check if we already generated a letter for this job ID
-                        letter_key = f"cover_letter_{job.id}"
-                        if letter_key in st.session_state:
-                            st.success("✅ Cover Letter Drafted!")
-                            st.text_area("Copy content:", value=st.session_state[letter_key], height=200, key=f"view_{job.id}")
-                    
+                        status = []
+                        if f"cover_letter_{job.id}" in st.session_state: status.append("✅ Letter Ready")
+                        if f"resume_{job.id}" in st.session_state: status.append("✅ Resume Ready")
+                        if status: st.caption(" | ".join(status))
+
                     with c2:
-                        # --- GENERATE BUTTON ---
-                        if st.button("✍️ Draft Letter", key=f"btn_gen_{job.id}"):
+                        if st.button("✍️ Draft Letter", key=f"cl_{job.id}"):
                             with st.spinner("Writing..."):
-                                try:
-                                    # Generate for this single job
-                                    # Returns dict: {job_id: "Letter text..."}
-                                    drafts = generate_proposals([job])
-                                    
-                                    # Save to Session State (Memory)
-                                    letter_text = list(drafts.values())[0]
-                                    st.session_state[f"cover_letter_{job.id}"] = letter_text
+                                drafts = generate_proposals([job])
+                                st.session_state[f"cover_letter_{job.id}"] = list(drafts.values())[0]
+                                st.rerun()
+                        if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
+                            prof = load_profile()
+                            if prof:
+                                with st.spinner("Tailoring..."):
+                                    path = save_tailored_resume(tailor_resume(job, prof), job.company, job.title)
+                                    st.session_state[f"resume_{job.id}"] = path
                                     st.rerun()
-                                except Exception as e:
-                                    st.error(f"Failed: {e}")
-
-                        # DISMISS
-                        if st.button("❌ Dismiss", key=f"dismiss_{job.id}"):
+                            else: st.error("No profile.md")
+                        if st.button("❌ Dismiss", key=f"d_{job.id}"):
                             save_to_history(job.id)
-                            st.session_state["results"]["filtered_jobs"] = [
-                                j for j in st.session_state["results"]["filtered_jobs"] if j.id != job.id
-                            ]
-                            st.toast(f"Dismissed: {job.title}")
+                            st.session_state["results"]["filtered_jobs"] = [j for j in jobs if j.id != job.id]
                             st.rerun()
-
-                        # APPLIED
-                        if st.button("✅ Applied", key=f"apply_{job.id}"):
+                        if st.button("✅ Applied", key=f"a_{job.id}"):
                             save_to_history(job.id)
-                            st.session_state["results"]["filtered_jobs"] = [
-                                j for j in st.session_state["results"]["filtered_jobs"] if j.id != job.id
-                            ]
-                            st.toast(f"Applied: {job.title}")
+                            st.session_state["results"]["filtered_jobs"] = [j for j in jobs if j.id != job.id]
                             st.rerun()
-    else:
-        st.info("Run the agent to see results.")
+    else: st.info("Run the agent to see results.")
 
-# --- TAB 3: TAILORED RESUMES ---
-with tab_resumes:
-    st.subheader("📂 Generated Resumes")
-    folder_path = "generated_resumes"
-    if os.path.exists(folder_path):
-        files = [f for f in os.listdir(folder_path) if f.endswith(".md")]
-        if not files:
-            st.info("No resumes generated yet.")
+# --- TAB 3: ANALYTICS (NEW!) ---
+with tab_analytics:
+    st.subheader("📈 Market Insights (Current Session)")
+    
+    if "results" in st.session_state:
+        results = st.session_state["results"]
+        jobs = results.get("filtered_jobs", [])
+        
+        if not jobs:
+            st.warning("No data to analyze yet. Run the agent first!")
         else:
-            for filename in files:
-                file_path = os.path.join(folder_path, filename)
-                with st.expander(f"📄 {filename}", expanded=False):
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f: content = f.read()
-                        st.download_button("⬇️ Download Markdown", content, filename, "text/markdown")
-                        st.code(content[:500] + "...", language="markdown") 
-                    except Exception as e: st.error(f"Error: {e}")
-    else:
-        st.warning("No 'generated_resumes' folder found.")
+            # Convert Job Objects to DataFrame
+            data = []
+            for j in jobs:
+                data.append({
+                    "Platform": j.platform,
+                    "Score": j.relevance_score,
+                    "Budget Max": getattr(j, "budget_max", 0),
+                    "Company": getattr(j, "company", "Unknown")
+                })
+            df = pd.DataFrame(data)
 
-# --- TAB 4: COVER LETTERS (The Archive) ---
-with tab_letters:
-    st.subheader("✉️ Your Drafts (Session)")
-    
-    # scan session state for any keys starting with "cover_letter_"
-    draft_keys = [k for k in st.session_state.keys() if k.startswith("cover_letter_")]
-    
-    if not draft_keys:
-        st.info("No cover letters generated in this session yet. Go to 'Job Matches' and click '✍️ Draft Letter' on a job!")
-    else:
-        for key in draft_keys:
-            # Extract ID to find job details (optional, but we just show the ID for now)
-            job_id = key.replace("cover_letter_", "")
-            content = st.session_state[key]
+            # ROW 1: Platform & Score
+            col1, col2 = st.columns(2)
             
-            with st.expander(f"Draft for Job ID: {job_id}", expanded=True):
-                st.text_area("Content", value=content, height=300, key=f"archive_{key}")
-                st.caption("Copy and paste this into the job application.")
+            with col1:
+                st.markdown("#### 🌍 Jobs by Platform")
+                # Pie Chart
+                chart = alt.Chart(df).mark_arc(innerRadius=50).encode(
+                    theta=alt.Theta("count()", stack=True),
+                    color=alt.Color("Platform"),
+                    tooltip=["Platform", "count()"]
+                ).properties(height=300)
+                st.altair_chart(chart, use_container_width=True)
+
+            with col2:
+                st.markdown("#### 🎯 Relevance Quality")
+                # Histogram of Scores
+                chart = alt.Chart(df).mark_bar().encode(
+                    x=alt.X("Score", bin=alt.Bin(maxbins=10)),
+                    y='count()',
+                    color=alt.Color("Score", scale=alt.Scale(scheme='viridis')),
+                    tooltip=["count()"]
+                ).properties(height=300)
+                st.altair_chart(chart, use_container_width=True)
+
+            # ROW 2: Salary Insights
+            st.markdown("#### 💰 Salary / Rate Distribution (USD)")
+            
+            # Filter out jobs with 0 budget (undisclosed)
+            salary_df = df[df["Budget Max"] > 0]
+            
+            if salary_df.empty:
+                st.info("No salary data available in this batch.")
+            else:
+                chart = alt.Chart(salary_df).mark_bar().encode(
+                    x=alt.X("Budget Max", bin=True, title="Budget (Max)"),
+                    y='count()',
+                    tooltip=["Budget Max", "count()"]
+                ).properties(height=300)
+                st.altair_chart(chart, use_container_width=True)
+                
+                avg_rate = salary_df["Budget Max"].mean()
+                st.metric("Average Listed Budget/Rate", f"${avg_rate:,.2f}")
+
+    else:
+        st.info("Run the agent to see market insights.")
+
+# --- TAB 4: RESUMES ---
+with tab_resumes:
+    st.subheader("📂 Tailored Resumes")
+    if os.path.exists("generated_resumes"):
+        files = sorted([f for f in os.listdir("generated_resumes") if f.endswith(".md")], reverse=True)
+        for f in files:
+            with st.expander(f"📄 {f}"):
+                with open(os.path.join("generated_resumes", f), "r", encoding="utf-8") as file: 
+                    st.download_button("⬇️ Download", file.read(), f, "text/markdown")
+
+# --- TAB 5: LETTERS ---
+with tab_letters:
+    st.subheader("✉️ Drafted Letters")
+    keys = [k for k in st.session_state.keys() if k.startswith("cover_letter_")]
+    for k in keys:
+        with st.expander(f"Draft for Job {k.replace('cover_letter_', '')}"):
+            st.text_area("Content", st.session_state[k], height=300)

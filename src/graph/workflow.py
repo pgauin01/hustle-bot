@@ -38,7 +38,7 @@ def fetch_wwr(state: JobState):
 
 def fetch_upwork(state: JobState):
     query = state.get("search_query", "python")
-    print(f"🌍 Fetching Upwork RSS for '{query}'...")
+    print(f"🌍 Fetching Upwork API for '{query}'...")
     existing_jobs = state.get("raw_results", [])
     try:
         raw_jobs = fetch_upwork_api(query)

@@ -115,6 +115,39 @@ python main.py
 
 ```
 
+### Upwork-only: Run & Test the Fetch Flow
+
+If you only want to verify the Upwork integration, use this checklist.
+
+1. Add Upwork credentials to `.env` (recommended: OAuth refresh flow):
+
+```ini
+UPWORK_CLIENT_ID="..."
+UPWORK_CLIENT_SECRET="..."
+UPWORK_REFRESH_TOKEN="..."
+# Optional if your app requires tenant scoping
+UPWORK_TENANT_ID="..."
+# Optional pacing control (default is 0.5)
+UPWORK_REQUEST_DELAY_SECONDS="0.5"
+```
+
+2. Run the standalone smoke test:
+
+```bash
+python scripts/test_upwork_flow.py --query "python developer" --rows 5
+```
+
+3. Run the full workflow (all sources, including Upwork):
+
+```bash
+python main.py
+```
+
+4. What to expect:
+   - If credentials are missing, Upwork is skipped safely and the bot continues.
+   - If credentials are valid, jobs should be returned and normalized into the pipeline.
+   - If rate-limited, requests are retried with backoff (HTTP `429` support).
+
 ---
 
 ## ☁️ Deployment (GitHub Actions)

@@ -1,11 +1,15 @@
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 TOKEN_URL = "https://www.upwork.com/api/v3/oauth2/token"
 GRAPHQL_URL = "https://api.upwork.com/graphql"
 DEFAULT_ROWS = 25
+MAX_RETRIES = 4
 
 PUBLIC_JOB_SEARCH_QUERY = """
 query publicMarketplaceJobPostingsSearch($marketPlaceJobFilter: PublicMarketplaceJobPostingsSearchFilter!) {
@@ -35,6 +39,33 @@ query publicMarketplaceJobPostingsSearch($marketPlaceJobFilter: PublicMarketplac
 """
 
 
+def _requests_session() -> requests.Session:
+    """Create a resilient HTTP session for Upwork endpoints."""
+    retry = Retry(
+        total=MAX_RETRIES,
+        connect=MAX_RETRIES,
+        read=MAX_RETRIES,
+        status=MAX_RETRIES,
+        backoff_factor=1.0,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=("GET", "POST"),
+        raise_on_status=False,
+        respect_retry_after_header=True,
+    )
+
+    adapter = HTTPAdapter(max_retries=retry)
+    session = requests.Session()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.headers.update(
+        {
+            "User-Agent": "HustleBot/1.0 (+https://github.com/yourusername/hustle-bot)",
+            "Accept": "application/json",
+        }
+    )
+    return session
+
+
 def _get_access_token() -> Optional[str]:
     """Return an Upwork access token from env or refresh token exchange."""
     env_access_token = os.getenv("UPWORK_ACCESS_TOKEN")
@@ -47,36 +78,52 @@ def _get_access_token() -> Optional[str]:
 
     if not client_id or not client_secret or not refresh_token:
         print(
-            "?? Upwork skipped: set UPWORK_ACCESS_TOKEN or "
+            "⚠️ Upwork skipped: set UPWORK_ACCESS_TOKEN or "
             "UPWORK_CLIENT_ID + UPWORK_CLIENT_SECRET + UPWORK_REFRESH_TOKEN."
         )
         return None
 
     payload = {
         "grant_type": "refresh_token",
-        "client_id": client_id,
-        "client_secret": client_secret,
         "refresh_token": refresh_token,
     }
 
+    session = _requests_session()
+
     try:
-        response = requests.post(TOKEN_URL, data=payload, timeout=20)
+        # Preferred OAuth2 mode: client auth via HTTP Basic.
+        response = session.post(
+            TOKEN_URL,
+            data=payload,
+            auth=(client_id, client_secret),
+            timeout=20,
+        )
+
+        # Compatibility fallback for apps expecting client credentials in form payload.
+        if response.status_code in (400, 401):
+            fallback_payload = {
+                **payload,
+                "client_id": client_id,
+                "client_secret": client_secret,
+            }
+            response = session.post(TOKEN_URL, data=fallback_payload, timeout=20)
+
         response.raise_for_status()
         token_data = response.json()
     except Exception as exc:
-        print(f"? Upwork token request failed: {exc}")
+        print(f"❌ Upwork token request failed: {exc}")
         return None
 
     access_token = token_data.get("access_token")
     new_refresh_token = token_data.get("refresh_token")
 
     if not access_token:
-        print("?? Upwork token response did not include access_token.")
+        print("❌ Upwork token response did not include access_token.")
         return None
 
     if new_refresh_token and new_refresh_token != refresh_token:
         print(
-            "?? Upwork returned a new refresh token. "
+            "⚠️ Upwork returned a new refresh token. "
             "Update UPWORK_REFRESH_TOKEN in your .env."
         )
 
@@ -91,11 +138,16 @@ def _build_upwork_job_url(ciphertext: str) -> str:
 
 
 def fetch_upwork_api(query: str = "python developer", rows: int = DEFAULT_ROWS) -> List[Dict[str, Any]]:
-    print(f"?? Connecting to Upwork API (query='{query}')...")
+    print(f"🌍 Connecting to Upwork API (query='{query}')...")
 
     access_token = _get_access_token()
     if not access_token:
         return []
+
+    # Polite pacing to avoid bursty API traffic patterns.
+    request_delay_s = float(os.getenv("UPWORK_REQUEST_DELAY_SECONDS", "0.5"))
+    if request_delay_s > 0:
+        time.sleep(request_delay_s)
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -121,18 +173,20 @@ def fetch_upwork_api(query: str = "python developer", rows: int = DEFAULT_ROWS) 
         "variables": variables,
     }
 
+    session = _requests_session()
+
     try:
-        response = requests.post(GRAPHQL_URL, json=payload, headers=headers, timeout=30)
+        response = session.post(GRAPHQL_URL, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
         body = response.json()
     except Exception as exc:
-        print(f"? Upwork GraphQL request failed: {exc}")
+        print(f"❌ Upwork GraphQL request failed: {exc}")
         return []
 
     if body.get("errors"):
         first_error = body["errors"][0]
         message = first_error.get("message", "Unknown GraphQL error")
-        print(f"?? Upwork GraphQL error: {message}")
+        print(f"❌ Upwork GraphQL error: {message}")
         return []
 
     jobs_data = (
@@ -164,5 +218,5 @@ def fetch_upwork_api(query: str = "python developer", rows: int = DEFAULT_ROWS) 
             }
         )
 
-    print(f"? Retrieved {len(jobs)} raw jobs from Upwork API.")
+    print(f"✅ Retrieved {len(jobs)} raw jobs from Upwork API.")
     return jobs

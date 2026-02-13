@@ -3,7 +3,6 @@ from langgraph.graph import StateGraph, END
 from .state import JobState
 from ..models.job import Job
 from ..utils.cleaning import clean_html
-from ..llm.scoring import score_jobs_with_llm
 from ..utils.google_sheets import log_jobs_to_sheet
 from ..utils.history import load_history
 from ..notifications.telegram import send_telegram_alert 
@@ -13,53 +12,82 @@ from ..platforms.remoteok import fetch_from_remoteok
 from ..platforms.weworkremotely import fetch_weworkremotely
 from ..platforms.upwork import fetch_upwork_api
 from ..platforms.freelancer import fetch_freelancer_api
+from ..platforms.linkedin import fetch_linkedin_jobs  
+from ..llm.scoring import score_jobs_with_resume
 
 # --- 1. Fetchers ---
+
 def fetch_remoteok(state: JobState):
+    if "RemoteOK" not in state.get("selected_platforms", []): return {"raw_results": []}
     query = state.get("search_query", "python")
     print(f"🌍 Fetching RemoteOK for '{query}'...")
     try:
-        raw_jobs = fetch_from_remoteok(tag=query)
-        return {"raw_results": [{"source": "remoteok", "payload": j} for j in raw_jobs]}
+        raw = fetch_from_remoteok(tag=query)
+        return {"raw_results": [{"source": "remoteok", "payload": j} for j in raw]}
     except Exception as e:
         print(f"❌ RemoteOK Failed: {e}")
         return {"raw_results": []}
 
 def fetch_wwr(state: JobState):
+    existing = state.get("raw_results", [])
+    if "WeWorkRemotely" not in state.get("selected_platforms", []): return {"raw_results": existing}
     print("🌍 Fetching WeWorkRemotely...")
-    existing_jobs = state.get("raw_results", [])
     try:
-        raw_jobs = fetch_weworkremotely()
-        new_jobs = [{"source": "wwr", "payload": j} for j in raw_jobs]
-        return {"raw_results": existing_jobs + new_jobs}
-    except Exception as e:
-        print(f"❌ WWR Node Failed: {e}")
-        return {"raw_results": existing_jobs}
+        raw = fetch_weworkremotely()
+        new = [{"source": "wwr", "payload": j} for j in raw]
+        return {"raw_results": existing + new}
+    except Exception: return {"raw_results": existing}
 
 def fetch_upwork(state: JobState):
+    existing = state.get("raw_results", [])
+    if "Upwork" not in state.get("selected_platforms", []): return {"raw_results": existing}
     query = state.get("search_query", "python")
     print(f"🌍 Fetching Upwork RSS for '{query}'...")
-    existing_jobs = state.get("raw_results", [])
     try:
-        raw_jobs = fetch_upwork_api(query)
-        new_jobs = [{"source": "upwork", "payload": j} for j in raw_jobs]
-        return {"raw_results": existing_jobs + new_jobs}
-    except Exception as e:
-        print(f"❌ Upwork Node Failed: {e}")
-        return {"raw_results": existing_jobs}
+        raw = fetch_upwork_api(query)
+        new = [{"source": "upwork", "payload": j} for j in raw]
+        return {"raw_results": existing + new}
+    except Exception: return {"raw_results": existing}
 
 def fetch_freelancer(state: JobState):
+    existing = state.get("raw_results", [])
+    if "Freelancer" not in state.get("selected_platforms", []): return {"raw_results": existing}
     print(f"🦅 Fetching Freelancer...")
-    existing_jobs = state.get("raw_results", [])
     try:
-        result_dict = fetch_freelancer_api(state)
-        new_jobs = result_dict.get("raw_results", [])
-        return {"raw_results": existing_jobs + new_jobs}
-    except Exception as e:
-        print(f"❌ Freelancer Node Failed: {e}")
-        return {"raw_results": existing_jobs}
+        res = fetch_freelancer_api(state)
+        return {"raw_results": existing + res.get("raw_results", [])}
+    except Exception: return {"raw_results": existing}
 
-# --- 2. Normalizer ---
+# --- NEW LINKEDIN NODE ---
+def fetch_linkedin(state: JobState):
+    existing = state.get("raw_results", [])
+    
+    # Check if selected
+    if "LinkedIn" not in state.get("selected_platforms", []):
+        print("⏭️ Skipping LinkedIn (Not selected)")
+        return {"raw_results": existing}
+
+    query = state.get("search_query", "python")
+    print(f"👔 Fetching LinkedIn (Guest Mode) for '{query}'...")
+    
+    new_jobs = []
+    # --- LOCATION FILTER ---
+    # We search twice: Once for "India", Once for "Remote"
+    target_locations = ["India", "Remote"]
+    
+    for loc in target_locations:
+        try:
+            raw_jobs = fetch_linkedin_jobs(query=query, location=loc)
+            # Tag the source clearly
+            new_batch = [{"source": "linkedin", "payload": j} for j in raw_jobs]
+            new_jobs.extend(new_batch)
+            print(f"   ✅ Found {len(new_batch)} jobs in '{loc}'.")
+        except Exception as e:
+            print(f"   ❌ Failed to fetch '{loc}': {e}")
+
+    return {"raw_results": existing + new_jobs}
+
+# --- 2. Normalizer (Updated for LinkedIn) ---
 def normalize_data(state: JobState):
     raw_results = state.get("raw_results", [])
     normalized_jobs = []
@@ -67,66 +95,34 @@ def normalize_data(state: JobState):
     seen_urls = set()
     
     print(f"🔄 Normalizing {len(raw_results)} jobs...")
-    print(f"   (Ignoring {len(seen_history)} previously processed jobs)")
-
+    
     for item in raw_results:
         source = item["source"]
-        payload = item["payload"]
+        p = item["payload"]
         try:
             job = None
             if source == "remoteok":
-                job = Job(
-                    id=str(payload.get("id", payload.get("url", ""))),
-                    platform="remoteok",
-                    title=payload.get("position", "Unknown"),
-                    company=payload.get("company", "Unknown"),
-                    description=clean_html(payload.get("description", "")),
-                    url=payload.get("url", ""),
-                    budget_min=float(payload.get("salary_min") or 0),
-                    budget_max=float(payload.get("salary_max") or 0),
-                    skills=payload.get("tags", []),
-                    posted_at=payload.get("date"),
-                    location=payload.get("location", "Unknown"), 
-                    is_remote=True
-                )
+                job = Job(id=str(p.get("id", p.get("url"))), platform="remoteok", title=p.get("position"), company=p.get("company"), description=clean_html(p.get("description")), url=p.get("url"), budget_min=float(p.get("salary_min") or 0), budget_max=float(p.get("salary_max") or 0), skills=p.get("tags"), posted_at=p.get("date"), location=p.get("location"), is_remote=True)
             elif source == "upwork":
-                job = Job(
-                    id=payload.get("id") or payload.get("link", ""),
-                    platform="upwork",
-                    title=payload.get("title", "Unknown"),
-                    company="Upwork Client",
-                    description=clean_html(payload.get("description", "")),
-                    url=payload.get("link", ""),
-                    budget_min=float(payload.get("budget_min") or 0.0),
-                    budget_max=float(payload.get("budget_max") or 0.0),
-                    location=payload.get("location", "Unknown"),
-                    skills=payload.get("skills", []),
-                    posted_at=payload.get("published")
-                )
+                job = Job(id=p.get("id"), platform="upwork", title=p.get("title"), company="Upwork Client", description=clean_html(p.get("description")), url=p.get("link"), budget_min=float(p.get("budget_min") or 0), budget_max=float(p.get("budget_max") or 0), location=p.get("location"), skills=p.get("skills"), posted_at=p.get("published"))
             elif source == "wwr":
-                job = Job(
-                    id=payload.get("id"),
-                    platform="weworkremotely",
-                    title=payload.get("title", "Unknown"),
-                    company=payload.get("company", "Unknown"),
-                    description=clean_html(payload.get("description", "")),
-                    url=payload.get("link", ""),
-                    budget_min=0.0,
-                    budget_max=0.0,
-                    skills=[], 
-                    posted_at=payload.get("published")
-                )
+                job = Job(id=p.get("id"), platform="weworkremotely", title=p.get("title"), company=p.get("company"), description=clean_html(p.get("description")), url=p.get("link"), budget_min=0.0, budget_max=0.0, skills=[], posted_at=p.get("published"))
             elif source == "freelancer":
+                job = Job(id=str(p.get("id")), platform="freelancer", title=p.get("title"), company="Freelancer Client", description=p.get("description"), url=p.get("url"), budget_min=float(p.get("budget_min") or 0), budget_max=float(p.get("budget_max") or 0))
+            
+            # --- LINKEDIN MAPPING ---
+            elif source == "linkedin":
                 job = Job(
-                    id=str(payload.get("id")),
-                    platform="freelancer",
-                    title=payload.get("title"),
-                    company="Freelancer Client",
-                    description=payload.get("description"),
-                    url=payload.get("url"),
-                    budget_min=float(payload.get("budget_min") or 0),
-                    budget_max=float(payload.get("budget_max") or 0),
-                    currency=payload.get("currency", "USD")
+                    id=p.get("id"),
+                    platform="linkedin",
+                    title=p.get("title"),
+                    company=p.get("company"),
+                    description=p.get("description"), # Note: LinkedIn Guest API doesn't give full description
+                    url=p.get("url"),
+                    budget_min=0.0, 
+                    budget_max=0.0,
+                    location=p.get("location"),
+                    posted_at=p.get("date")
                 )
 
             if job:
@@ -134,99 +130,85 @@ def normalize_data(state: JobState):
                 if job.url in seen_urls: continue
                 seen_urls.add(job.url)
                 normalized_jobs.append(job)
+        except Exception: continue
 
-        except Exception as e:
-            continue
-
-    print(f"✅ Normalized {len(normalized_jobs)} unique, new jobs.")
+    print(f"✅ Normalized {len(normalized_jobs)} unique jobs.")
     return {"normalized_jobs": normalized_jobs}
 
-# --- 3. Scorer ---
+# --- 3. Scorer (Resume-Aware) ---
 def score_jobs(state: JobState):
     normalized = state.get("normalized_jobs", [])
-    query = state.get("search_query", "Python Developer")
+    
+    # Load Resume
+    resume_path = "profile.md"
+    if not os.path.exists(resume_path):
+        print("⚠️ profile.md not found! Using Keyword Search only.")
+        # Fallback to old logic or return empty
+        return {"filtered_jobs": normalized} # Just return all without scoring if no resume
+        
+    with open(resume_path, "r", encoding="utf-8") as f:
+        resume_text = f.read()
+
+    # Apply Basic Keyword Filter first (Cheap Filter)
     from ..utils.filtering import strict_keyword_filter 
     must_haves = state.get("must_have_keywords", [])
     
     if not normalized: return {"filtered_jobs": []}
 
+    # 1. Hard Filter (Must contain "Python")
     technically_qualified = strict_keyword_filter(normalized, must_haves)
     if not technically_qualified: return {"filtered_jobs": []}
 
-    scored = score_jobs_with_llm(technically_qualified, query)
+    # 2. AI Resume Analysis (Deep Filter)
+    scored = score_jobs_with_resume(technically_qualified, resume_text)
+    
     return {"filtered_jobs": scored}
 
 # --- 4. Notifier ---
 def notify_user(state: JobState):
     all_jobs = state.get("filtered_jobs", [])
-    
-    # Only notify for HIGH VALUE jobs (> 75)
     high_value = [j for j in all_jobs if j.relevance_score >= 75]
-
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    
-    if not token or not chat_id:
-        print("⚠️ Telegram keys missing, skipping alerts.")
-        return {}
-        
-    if not high_value:
-        print("🔕 No jobs met the score threshold (75+) for Telegram alerts.")
-        return {}
-
-    print(f"🔔 Sending Telegram alerts for {len(high_value)} jobs...")
+    token, chat_id = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id or not high_value: return {}
     for job in high_value:
-        try:
-            send_telegram_alert(job.title, job.url, job.relevance_score, job.reasoning, "[View in Dashboard]")
-        except Exception:
-            pass # Don't crash on notification failure
-            
+        try: send_telegram_alert(job.title, job.url, job.relevance_score, job.reasoning, "[View in Dashboard]")
+        except: pass
     return {}
 
-# --- 5. Logger (Clean Sheet Mode) ---
+# --- 5. Logger ---
 def log_results_node(state: JobState):
     top_jobs = state.get("filtered_jobs", [])
     sheet_url = os.getenv("GOOGLE_SHEET_URL")
-    
-    if not sheet_url: 
-        print("⚠️ No Google Sheet URL provided, skipping logging.")
-        return {}
-
-    # --- FILTER: Only log decent jobs (Score > 50) ---
-    # This keeps your sheet clean from "junk" matches.
-    worthy_jobs = [j for j in top_jobs if j.relevance_score > 50]
-
-    if worthy_jobs:
-        print(f"📝 Logging {len(worthy_jobs)} qualified jobs (Score > 50) to Google Sheets...")
-        try:
-            log_jobs_to_sheet(worthy_jobs, sheet_url)
-            print("✅ Successfully logged.")
-        except Exception as e:
-            print(f"❌ Google Sheet Logging Failed: {e}")
-            print("   (Continuing workflow so you can still see jobs in Dashboard)")
-    else:
-        print("📉 No jobs scored high enough (>50) to be logged.")
-            
+    if not sheet_url: return {}
+    worthy = [j for j in top_jobs if j.relevance_score > 50]
+    if worthy:
+        try: log_jobs_to_sheet(worthy, sheet_url)
+        except: pass
     return {}
 
-# --- 6. Graph Construction ---
+
+# --- 6. Graph ---
 def create_graph():
     workflow = StateGraph(JobState)
-
     workflow.add_node("remoteok_fetcher", fetch_remoteok)
     workflow.add_node("wwr_fetcher", fetch_wwr)
     workflow.add_node("upwork_fetcher", fetch_upwork)
     workflow.add_node("freelancer_fetcher", fetch_freelancer) 
+    workflow.add_node("linkedin_fetcher", fetch_linkedin) # <--- ADD NODE
+    
     workflow.add_node("normalizer", normalize_data)
     workflow.add_node("scorer", score_jobs)
     workflow.add_node("notifier", notify_user)
     workflow.add_node("logger", log_results_node)
 
+    # Simple sequential flow
     workflow.set_entry_point("remoteok_fetcher") 
     workflow.add_edge("remoteok_fetcher", "wwr_fetcher")
     workflow.add_edge("wwr_fetcher", "upwork_fetcher")   
     workflow.add_edge("upwork_fetcher", "freelancer_fetcher")
-    workflow.add_edge("freelancer_fetcher", "normalizer") 
+    workflow.add_edge("freelancer_fetcher", "linkedin_fetcher") # <--- LINK NEW NODE
+    workflow.add_edge("linkedin_fetcher", "normalizer")         # <--- LINK TO NORMALIZER
+    
     workflow.add_edge("normalizer", "scorer")
     workflow.add_edge("scorer", "notifier")
     workflow.add_edge("notifier", "logger")

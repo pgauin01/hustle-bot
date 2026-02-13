@@ -10,3 +10,4 @@ oauth2client
 gspread
 langchain-google-genai
 schedule
+beautifulsoup4

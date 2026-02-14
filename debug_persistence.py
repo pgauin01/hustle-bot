@@ -1,54 +1,50 @@
 import os
 import sys
-from src.models.job import Job
-from src.utils.persistence import save_application, save_manual_job, get_sheet_connection
+from src.utils.persistence import load_applications, get_sheet_connection
 
-# --- FAKE JOB DATA ---
-fake_job = Job(
-    id="debug_test_123",
-    platform="Debug Script",
-    title="Test Job Title",
-    company="Test Company",
-    description="This is a test description.",
-    url="https://google.com",
-    budget_min=0,
-    budget_max=0,
-    is_remote=True
-)
-fake_job.relevance_score = 99
-fake_job.reasoning = "Test Reasoning"
-fake_job.gap_analysis = "Test Gap Analysis"
-
-def run_debug():
-    print("\n🔍 --- DEBUGGING PERSISTENCE.PY ---")
+def debug_tracker():
+    print("\n🔍 --- DEBUGGING TRACKER ---")
     
-    # 1. Test Connection Directly
+    # 1. Test Connection
     print("\n1️⃣ Testing Connection...")
     client = get_sheet_connection()
     if not client:
-        print("❌ get_sheet_connection() returned None!")
-        print("   -> Check your credentials.json or Environment Variables.")
+        print("❌ Connection Failed. check credentials.")
         return
-    else:
-        print("✅ Connection Successful!")
+    print("✅ Connection Successful.")
 
-    # 2. Test Manual Jobs Save
-    print("\n2️⃣ Testing 'save_manual_job'...")
+    # 2. Inspect the Sheet Directly
+    print("\n2️⃣ Inspecting 'Tracker' Tab...")
     try:
-        save_manual_job(fake_job)
-        print("   (Check your 'Manual_Jobs' tab now)")
+        sheet = client.worksheet("Tracker")
+        data = sheet.get_all_values()
+        
+        if not data:
+            print("❌ Sheet is completely empty (No headers, nothing).")
+        else:
+            print(f"✅ Found {len(data)} rows (including header).")
+            print(f"   Header Row: {data[0]}")
+            if len(data) > 1:
+                print(f"   First Row Data: {data[1]}")
+            else:
+                print("⚠️ Sheet has headers but NO DATA rows.")
     except Exception as e:
-        print(f"❌ CRITICAL ERROR in save_manual_job: {e}")
+        print(f"❌ Error accessing tab: {e}")
 
-    # 3. Test Tracker Save
-    print("\n3️⃣ Testing 'save_application'...")
+    # 3. Test the Load Function
+    print("\n3️⃣ Testing load_applications()...")
     try:
-        save_application(fake_job, status="Debug_Applied")
-        print("   (Check your 'Tracker' tab now)")
+        apps = load_applications()
+        print(f"   Function returned: {type(apps)}")
+        print(f"   Item count: {len(apps)}")
+        if len(apps) > 0:
+            print(f"   First Item: {apps[0]}")
+        else:
+            print("❌ Function returned empty list []")
     except Exception as e:
-        print(f"❌ CRITICAL ERROR in save_application: {e}")
+        print(f"❌ Function Crashed: {e}")
 
 if __name__ == "__main__":
-    # Ensure we can import from src
+    # Fix imports to allow running from root
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    run_debug()
+    debug_tracker()

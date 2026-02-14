@@ -176,15 +176,15 @@ def notify_user(state: JobState):
     return {}
 
 # --- 5. Logger ---
-def log_results_node(state: JobState):
-    top_jobs = state.get("filtered_jobs", [])
-    sheet_url = os.getenv("GOOGLE_SHEET_URL")
-    if not sheet_url: return {}
-    worthy = [j for j in top_jobs if j.relevance_score > 50]
-    if worthy:
-        try: log_jobs_to_sheet(worthy, sheet_url)
-        except: pass
-    return {}
+# def log_results_node(state: JobState):
+#     top_jobs = state.get("filtered_jobs", [])
+#     sheet_url = os.getenv("GOOGLE_SHEET_URL")
+#     if not sheet_url: return {}
+#     worthy = [j for j in top_jobs if j.relevance_score > 50]
+#     if worthy:
+#         try: log_jobs_to_sheet(worthy, sheet_url)
+#         except: pass
+#     return {}
 
 
 # --- 6. Graph ---
@@ -199,7 +199,7 @@ def create_graph():
     workflow.add_node("normalizer", normalize_data)
     workflow.add_node("scorer", score_jobs)
     workflow.add_node("notifier", notify_user)
-    workflow.add_node("logger", log_results_node)
+    # workflow.add_node("logger", log_results_node)
 
     # Simple sequential flow
     workflow.set_entry_point("remoteok_fetcher") 
@@ -211,7 +211,8 @@ def create_graph():
     
     workflow.add_edge("normalizer", "scorer")
     workflow.add_edge("scorer", "notifier")
-    workflow.add_edge("notifier", "logger")
-    workflow.add_edge("logger", END)      
+    # workflow.add_edge("notifier", "logger")
+    # workflow.add_edge("logger", END) 
+    workflow.add_edge("notifier", END) # End after notification for now     
 
     return workflow.compile()

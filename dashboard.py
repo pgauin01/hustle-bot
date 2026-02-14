@@ -13,8 +13,11 @@ from src.llm.proposal import generate_proposals
 from src.llm.resume_tailor import tailor_resume
 from src.utils.file_manager import save_tailored_resume
 from src.utils.applications import load_applications, save_application, update_status
-from src.models.job import Job  # <--- Needed for Manual Entry
-from src.llm.scoring import score_jobs_with_resume # <--- Needed for Manual Scoring
+from src.models.job import Job
+from src.llm.scoring import score_jobs_with_resume
+# --- NEW IMPORTS ---
+from src.utils.persistence import save_manual_job, load_manual_jobs, delete_manual_job, save_cover_letter, load_cover_letters
+from src.utils.google_sheets import log_jobs_to_sheet 
 
 # --- FIX: USE STANDARD GOOGLE LIBRARY ---
 try:
@@ -23,31 +26,47 @@ except ImportError:
     genai = None
 
 # Page Config
-st.set_page_config(page_title="HustleBot 2.6", page_icon="💼", layout="wide")
+st.set_page_config(page_title="HustleBot 2.7 (Persistent)", page_icon="💼", layout="wide")
 
 # --- HELPER FUNCTIONS ---
 def suggest_roles(api_key, skills):
     if not api_key: return []
-    if not genai: return []
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.0-flash")
         prompt = f"Suggest 5 concise job titles for: {skills}. Return comma-separated."
         response = model.generate_content(prompt)
         return [t.strip() for t in response.text.strip().split(",") if t.strip()]
-    except Exception as e: return []
+    except: return []
 
 def load_profile():
-    """Loads the base resume from profile.md"""
     if os.path.exists("profile.md"):
-        with open("profile.md", "r", encoding="utf-8") as f:
-            return f.read()
+        with open("profile.md", "r", encoding="utf-8") as f: return f.read()
     return ""
 
 def save_profile(content):
-    """Saves updated profile to profile.md"""
-    with open("profile.md", "w", encoding="utf-8") as f:
-        f.write(content)
+    with open("profile.md", "w", encoding="utf-8") as f: f.write(content)
+
+# --- INITIALIZE SESSION STATE ---
+# This runs once on startup to load your saved data
+if "init_done" not in st.session_state:
+    # Load Letters
+    saved_letters = load_cover_letters()
+    for jid, content in saved_letters.items():
+        st.session_state[f"cover_letter_{jid}"] = content
+    
+    # Load Manual Jobs into Results
+    manual_jobs = load_manual_jobs()
+    if "results" not in st.session_state:
+        st.session_state["results"] = {"filtered_jobs": []}
+    
+    # Merge manual jobs (avoiding duplicates if logic ran twice)
+    current_ids = [j.id for j in st.session_state["results"]["filtered_jobs"]]
+    for mj in manual_jobs:
+        if mj.id not in current_ids:
+            st.session_state["results"]["filtered_jobs"].insert(0, mj)
+            
+    st.session_state["init_done"] = True
 
 # --- SIDEBAR: SETTINGS ---
 with st.sidebar:
@@ -61,34 +80,22 @@ with st.sidebar:
         sheet_url = st.text_input("Google Sheet URL", value=settings.get("sheet_url", ""))
         tele_token = st.text_input("Telegram Bot Token", value=settings.get("tele_token", ""), type="password")
         tele_chat = st.text_input("Telegram Chat ID", value=settings.get("tele_chat", ""))
-        
-        # New: SERP API Key for Google Jobs
         serp_key = st.text_input("SerpApi Key (Optional)", value=settings.get("serp_key", ""), type="password")
 
         if st.button("💾 Save Settings"):
             with open("user_settings.json", "w") as f:
-                json.dump({
-                    "api_key": api_key, 
-                    "sheet_url": sheet_url, 
-                    "tele_token": tele_token, 
-                    "tele_chat": tele_chat,
-                    "serp_key": serp_key
-                }, f)
+                json.dump({"api_key": api_key, "sheet_url": sheet_url, "tele_token": tele_token, "tele_chat": tele_chat, "serp_key": serp_key}, f)
             st.success("Saved!")
             st.rerun()
 
-    # Set Environment Variables
     if api_key: os.environ["GOOGLE_API_KEY"] = api_key
     if sheet_url: os.environ["GOOGLE_SHEET_URL"] = sheet_url
     if tele_token: os.environ["TELEGRAM_BOT_TOKEN"] = tele_token
     if tele_chat: os.environ["TELEGRAM_CHAT_ID"] = tele_chat
     if serp_key: os.environ["SERPAPI_KEY"] = serp_key
 
-# --- MAIN PAGE HEADER ---
 st.title("🤖 HustleBot: Career Command Center")
 
-# --- TABS ---
-# Added "🕵️ Manual Hunt" tab
 tab_run, tab_manual, tab_jobs, tab_tracker, tab_profile, tab_analytics, tab_docs = st.tabs([
     "🚀 Search", "🕵️ Manual Hunt", "📊 Matches", "📋 Tracker", "👤 Profile", "📈 Insights", "📂 Docs"
 ])
@@ -101,10 +108,8 @@ with tab_run:
         if "suggested_role" not in st.session_state: st.session_state["suggested_role"] = "Python Developer"
         query = st.text_input("Job Role", value=st.session_state["suggested_role"])
         keywords = st.text_input("Must-Have Skills", value="Python, Django")
-        
-        st.markdown("### 📡 Sources")
-        all_platforms = ["RemoteOK", "WeWorkRemotely", "Upwork", "Freelancer", "LinkedIn", "GoogleJobs"]
-        selected_platforms = st.multiselect("Select Platforms:", options=all_platforms, default=["RemoteOK", "GoogleJobs"])
+        all_platforms = ["RemoteOK", "WeWorkRemotely",  "Freelancer", "LinkedIn"]
+        selected_platforms = st.multiselect("Select Platforms:", options=all_platforms, default=["RemoteOK"])
         
         with st.expander("✨ AI Brainstorm"):
             if st.button("Suggest Roles"):
@@ -134,14 +139,20 @@ with tab_run:
                     try:
                         app = create_graph()
                         final_state = app.invoke(initial_state)
+                        
+                        # Merge new results with existing manual jobs
+                        manual_jobs = load_manual_jobs()
+                        fetched_jobs = final_state.get("filtered_jobs", [])
+                        final_state["filtered_jobs"] = manual_jobs + fetched_jobs
+                        
                         st.session_state["results"] = final_state
                         st.success("✅ Workflow Complete!")
                     except Exception as e: st.error(f"❌ Workflow Failed: {e}")
 
-# --- TAB 2: MANUAL HUNT (NEW!) ---
+# --- TAB 2: MANUAL HUNT ---
 with tab_manual:
     st.header("🕵️ Manual Job Entry")
-    st.caption("Found a job on LinkedIn or via email? Paste it here to analyze it with AI.")
+    st.caption("Jobs added here are SAVED automatically.")
     
     with st.form("manual_job_form"):
         c1, c2 = st.columns(2)
@@ -150,50 +161,28 @@ with tab_manual:
         m_url = st.text_input("Job URL (Optional)", placeholder="https://...")
         m_desc = st.text_area("Paste Job Description Here", height=300)
         
-        submitted = st.form_submit_button("✨ Analyze & Import")
+        submitted = st.form_submit_button("✨ Analyze & Save")
         
         if submitted:
             if not m_title or not m_desc:
                 st.error("Please provide at least a Job Title and Description.")
             else:
-                with st.spinner("🤖 AI is reading your resume and analyzing this job..."):
-                    # 1. Create a Job Object
-                    # We generate a unique ID based on time so it doesn't conflict
+                with st.spinner("🤖 Analyzing & Saving..."):
                     manual_id = f"manual_{int(time.time())}"
+                    new_job = Job(id=manual_id, platform="Manual Entry", title=m_title, company=m_company, description=m_desc, url=m_url, budget_min=0, budget_max=0, is_remote=True)
                     
-                    new_job = Job(
-                        id=manual_id,
-                        platform="Manual Entry",
-                        title=m_title,
-                        company=m_company if m_company else "Unknown",
-                        description=m_desc,
-                        url=m_url if m_url else "#",
-                        budget_min=0.0,
-                        budget_max=0.0,
-                        is_remote=True # Assume remote for safety
-                    )
-                    
-                    # 2. Score it using your Profile
-                    profile_text = load_profile()
-                    if not profile_text:
-                        st.warning("⚠️ No profile found. Scoring based on generic criteria.")
-                        profile_text = "Generic Developer Profile"
-
-                    # We reuse the existing scoring logic!
+                    profile_text = load_profile() or "Generic Developer Profile"
                     scored_jobs = score_jobs_with_resume([new_job], profile_text)
                     final_job = scored_jobs[0]
                     
-                    # 3. Add to Session State (Inject it into the list)
-                    if "results" not in st.session_state:
-                        st.session_state["results"] = {"filtered_jobs": []}
+                    # SAVE TO FILE
+                    save_manual_job(final_job)
                     
-                    # Insert at the TOP of the list
-                    current_jobs = st.session_state["results"].get("filtered_jobs", [])
-                    current_jobs.insert(0, final_job)
-                    st.session_state["results"]["filtered_jobs"] = current_jobs
+                    # UPDATE SESSION
+                    if "results" not in st.session_state: st.session_state["results"] = {"filtered_jobs": []}
+                    st.session_state["results"]["filtered_jobs"].insert(0, final_job)
                     
-                    st.success(f"✅ Imported! Match Score: {final_job.relevance_score}/100")
-                    st.info("Go to the '📊 Matches' tab to view details and generate cover letters.")
+                    st.success(f"✅ Saved! Score: {final_job.relevance_score}/100")
 
 # --- TAB 3: MATCHES ---
 with tab_jobs:
@@ -202,30 +191,29 @@ with tab_jobs:
         jobs = results.get("filtered_jobs", [])
         
         if not jobs:
-            st.info("🎉 No new jobs found. Try searching or adding one manually.")
+            st.info("🎉 No jobs found.")
         else:
             st.metric("Qualified Matches", len(jobs))
             for job in jobs:
-                # Color Coding
                 score = job.relevance_score
                 color = "green" if score >= 80 else "orange" if score >= 50 else "red"
                 
                 with st.expander(f"**:{color}[{score}/100]** {job.title} @ {getattr(job, 'company', 'Unknown')}"):
                     c1, c2 = st.columns([3, 1])
                     with c1:
-                        st.markdown(f"**Platform:** {job.platform}")
+                        st.markdown(f"**Source:** {job.platform}")
                         st.markdown(f"**Why:** {job.reasoning}")
-                        # Display Gap Analysis if available
-                        if hasattr(job, 'gap_analysis'):
-                            st.info(f"{job.gap_analysis}")
-                        st.markdown(f"[🔗 **Job Link**]({job.url})")
+                        if hasattr(job, 'gap_analysis'): st.info(f"{job.gap_analysis}")
+                        st.markdown(f"[🔗 **Link**]({job.url})")
 
                     with c2:
-                        # Actions
                         if st.button("✍️ Draft Letter", key=f"cl_{job.id}"):
                             with st.spinner("Generating..."):
                                 drafts = generate_proposals([job])
-                                st.session_state[f"cover_letter_{job.id}"] = list(drafts.values())[0]
+                                content = list(drafts.values())[0]
+                                st.session_state[f"cover_letter_{job.id}"] = content
+                                # SAVE LETTER
+                                save_cover_letter(job.id, content)
                                 st.rerun()
                         
                         if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
@@ -238,28 +226,41 @@ with tab_jobs:
                             else: st.error("Profile is empty!")
                         
                         if st.button("✅ Track", key=f"trk_{job.id}"):
+                            # 1. Save to Local JSON Tracker
                             save_application(job, "Applied")
-                            # Don't delete manual jobs from view instantly, simpler UX
-                            if job.platform != "Manual Entry":
+                            
+                            # 2. Log to Google Sheet (The New Manual Step)
+                            sheet_url = os.getenv("GOOGLE_SHEET_URL")
+                            if sheet_url:
+                                try:
+                                    # We wrap the single job in a list because the function expects a list
+                                    log_jobs_to_sheet([job], sheet_url)
+                                    st.toast("📝 Logged to Google Sheet!")
+                                except Exception as e:
+                                    st.error(f"Sheet Error: {e}")
+
+                            # 3. Remove from "New Matches" view
+                            if job.platform == "Manual Entry":
+                                delete_manual_job(job.id)
+                            else:
                                 save_to_history(job.id)
-                                st.session_state["results"]["filtered_jobs"] = [j for j in jobs if j.id != job.id]
-                            st.toast(f"Tracked: {job.title}")
+                                
+                            st.session_state["results"]["filtered_jobs"] = [j for j in jobs if j.id != job.id]
                             st.rerun()
 
                         if st.button("❌ Dismiss", key=f"d_{job.id}"):
-                            if job.platform != "Manual Entry":
+                            if job.platform == "Manual Entry":
+                                delete_manual_job(job.id)
+                            else:
                                 save_to_history(job.id)
                             st.session_state["results"]["filtered_jobs"] = [j for j in jobs if j.id != job.id]
                             st.rerun()
-    else: st.info("Run a search or add a manual job.")
 
 # --- TAB 4: TRACKER ---
 with tab_tracker:
     st.subheader("📋 Application Pipeline")
     apps = load_applications()
-    
-    if not apps:
-        st.info("No tracked applications. Go to 'Matches' and click '✅ Track'.")
+    if not apps: st.info("No tracked applications.")
     else:
         apps = sorted(apps, key=lambda x: x["applied_date"], reverse=True)
         for app in apps:
@@ -285,44 +286,32 @@ with tab_tracker:
 
 # --- TAB 5: PROFILE ---
 with tab_profile:
-    st.header("👤 Your Profile (The Source of Truth)")
-    st.caption("The AI uses this information to score jobs and tailor your resume. Keep it updated!")
-    
+    st.header("👤 Your Profile")
     current_content = load_profile()
-    if not current_content:
-        current_content = "# My Profile\n\n## Skills\n- Python\n- ...\n\n## Experience\n- ..."
-
+    if not current_content: current_content = "# My Profile\n\n## Skills\n- ..."
     new_content = st.text_area("Edit Profile (Markdown)", value=current_content, height=600)
-    
     if st.button("💾 Save Profile Changes"):
         save_profile(new_content)
-        st.success("✅ Profile updated! Future searches will use this new data.")
+        st.success("✅ Saved!")
 
 # --- TAB 6: INSIGHTS ---
 with tab_analytics:
-    st.subheader("📈 Market Insights")
+    st.subheader("📈 Insights")
     if "results" in st.session_state:
         results = st.session_state["results"]
         jobs = results.get("filtered_jobs", [])
         if jobs:
             data = [{"Platform": j.platform, "Score": j.relevance_score, "Budget": getattr(j, "budget_max", 0)} for j in jobs]
             df = pd.DataFrame(data)
-            
             c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("#### Match Quality")
-                st.bar_chart(df["Score"])
-            with c2:
-                st.markdown("#### Platform Distribution")
-                st.dataframe(df["Platform"].value_counts())
+            with c1: st.bar_chart(df["Score"])
+            with c2: st.dataframe(df["Platform"].value_counts())
     else: st.info("Run a search first.")
 
 # --- TAB 7: DOCS ---
 with tab_docs:
-    st.subheader("📂 Generated Documents")
-    
-    # 1. Resumes
-    st.markdown("### 📄 Tailored Resumes")
+    st.subheader("📂 Files")
+    st.markdown("### 📄 Resumes")
     if os.path.exists("generated_resumes"):
         for f in os.listdir("generated_resumes"):
             with open(f"generated_resumes/{f}") as file:
@@ -330,9 +319,9 @@ with tab_docs:
     
     st.divider()
     
-    # 2. Cover Letters (Session)
-    st.markdown("### ✉️ Cover Letters (Session)")
-    keys = [k for k in st.session_state.keys() if k.startswith("cover_letter_")]
-    for k in keys:
-        with st.expander(f"Draft for Job {k.replace('cover_letter_', '')}"):
-            st.text_area("Text", st.session_state[k], height=200)
+    st.markdown("### ✉️ Cover Letters (Saved)")
+    # Load from FILE now, not just session
+    saved_letters = load_cover_letters()
+    for jid, content in saved_letters.items():
+        with st.expander(f"Draft for Job ID: {jid}"):
+            st.text_area("Content", content, height=200, key=f"view_cl_{jid}")

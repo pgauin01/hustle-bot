@@ -1,0 +1,14 @@
+[
+  {
+    "id": "manual_1771004912",
+    "title": "Frontend Engineer",
+    "company": "Origa ",
+    "description": "Function: Software Engineering \u2192 Frontend Development\n\nCSSHTMLJavaScriptVue.jsReact.js\nResponsibilities:\n\nDevelop responsive, performant, and accessible web interfaces using modern frameworks (React, Vue, or similar).\nTranslate design mockups and wireframes into functional components.\nIntegrate frontend with RESTful or GraphQL APIs.\nOptimize applications for speed and scalability.\nCollaborate closely with product and design teams to refine user experience.\nWrite clean, maintainable, and well-documented code.\nParticipate in code reviews and contribute to best practices.\n\n\nRequirements:\n\n1-3 years of experience in frontend development.\nProficiency in HTML5 CSS3 JavaScript (ES6+), and React.js (or a similar framework).\nUnderstanding of state management (Redux, Zustand, Recoil, etc. ).\nExperience working with APIs and modern build tools (Webpack, Vite, etc. ).\nFamiliarity with Git and collaborative development workflows.\nStrong attention to UI/UX details and performance optimization.\n\n\n\nBenefits at Origa\nFlexible hybrid work environment \u2022 Learning and development budget \u2022 Performance-based travel opportunities \u2022 Significant growth \u2022 Competitive compensation with equity participation\n\nOriga's Tech Stack\nMachine LearningCCRMRESTGraphQLHTMLCSS JavaScriptReact.jsReduxVue.jsGit",
+    "url": "https://www.instahyre.com/job-399805-frontend-engineer-at-origa-work-from-home/",
+    "platform": "Manual Entry",
+    "relevance_score": 85,
+    "reasoning": "Praful is a strong fit with his React.js expertise and experience in building responsive web interfaces, aligning well with the Frontend Engineer role.",
+    "gap_analysis": "\u26a0\ufe0f Gaps: Experience is slightly above the 1-3 year range, and specific state management experience (Zustand, Recoil) isn't explicitly mentioned.\n\ud83d\udca1 Strategy: Emphasize experience with Redux and highlight any projects where you've optimized for speed and scalability to address potential concerns about experience level.",
+    "is_remote": true
+  }
+]

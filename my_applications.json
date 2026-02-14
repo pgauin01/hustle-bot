@@ -8,5 +8,35 @@
     "applied_date": "2026-02-13",
     "status": "Applied",
     "notes": ""
+  },
+  {
+    "id": "manual_1771004083",
+    "title": "Frontend Engineer",
+    "company": "Origa ",
+    "platform": "Manual Entry",
+    "url": "https://www.instahyre.com/job-399805-frontend-engineer-at-origa-work-from-home/",
+    "applied_date": "2026-02-13",
+    "status": "Applied",
+    "notes": ""
+  },
+  {
+    "id": "manual_1771004276",
+    "title": "Frontend Engineer",
+    "company": "Origa ",
+    "platform": "Manual Entry",
+    "url": "https://www.instahyre.com/job-399805-frontend-engineer-at-origa-work-from-home/",
+    "applied_date": "2026-02-13",
+    "status": "Interviewing",
+    "notes": ""
+  },
+  {
+    "id": "manual_1771006059",
+    "title": "Frontend Engineer",
+    "company": "Python",
+    "platform": "Manual Entry",
+    "url": "https://www.instahyre.com/job-399805-frontend-engineer-at-origa-work-from-home/",
+    "applied_date": "2026-02-13",
+    "status": "Ghosted",
+    "notes": ""
   }
 ]

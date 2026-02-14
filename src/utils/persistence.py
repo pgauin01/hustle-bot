@@ -139,6 +139,69 @@ def delete_manual_job(job_id):
         if cell: ws.delete_rows(cell.row)
     except: pass
 
-# --- 3. LETTERS ---
-def save_cover_letter(job_id, content): pass
-def load_cover_letters(): return {}
+# ... (keep existing imports and functions) ...
+
+# --- 3. COVER LETTERS (REAL IMPLEMENTATION) ---
+def save_cover_letter(job_id, content):
+    """Saves the cover letter text to the 'Cover_Letters' tab."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return
+
+        # 1. Get or Create Tab
+        try:
+            worksheet = sh.worksheet("Cover_Letters")
+        except:
+            worksheet = sh.add_worksheet(title="Cover_Letters", rows="100", cols="5")
+            
+        # 2. Ensure Headers
+        first_row = []
+        try: first_row = worksheet.row_values(1)
+        except: pass
+        
+        if not first_row or first_row[0] != "Job ID":
+            worksheet.insert_row(["Job ID", "Date Created", "Content"], index=1)
+
+        # 3. Check if Draft Exists (Update vs Append)
+        cell = worksheet.find(str(job_id), in_column=1)
+        
+        if cell:
+            # Update existing row (Content is in Col 3)
+            worksheet.update_cell(cell.row, 3, content)
+            # Update date (Col 2)
+            worksheet.update_cell(cell.row, 2, datetime.now().strftime("%Y-%m-%d %H:%M"))
+            print(f"✅ Updated Draft for {job_id}")
+        else:
+            # Append new row
+            row = [
+                str(job_id),
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+                content
+            ]
+            worksheet.append_row(row)
+            print(f"✅ Saved New Draft for {job_id}")
+
+    except Exception as e:
+        print(f"❌ Cover Letter Save Error: {e}")
+
+def load_cover_letters():
+    """Returns a dict {job_id: content} of all saved drafts."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return {}
+        
+        try: worksheet = sh.worksheet("Cover_Letters")
+        except: return {}
+
+        data = worksheet.get_all_records()
+        letters = {}
+        for d in data:
+            # Handle case sensitivity in headers
+            jid = str(d.get("Job ID") or d.get("job id") or "")
+            content = d.get("Content") or d.get("content") or ""
+            if jid and content:
+                letters[jid] = content
+        return letters
+    except Exception as e:
+        print(f"❌ Error loading letters: {e}")
+        return {}

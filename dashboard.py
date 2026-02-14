@@ -26,6 +26,7 @@ from src.utils.persistence import (
 )
 # NEW MATCHES IMPORTS
 from src.utils.google_sheets import log_jobs_to_sheet, load_new_matches, delete_new_match
+from datetime import datetime
 
 try:
     import google.generativeai as genai
@@ -102,8 +103,9 @@ with st.sidebar:
 
 st.title("🤖 HustleBot: Career Command Center")
 
-tab_run, tab_manual, tab_jobs, tab_tracker, tab_profile, tab_analytics = st.tabs([
-    "🚀 Search", "🕵️ Manual Hunt", "📊 Matches", "📋 Tracker", "👤 Profile", "📈 Insights"
+# FIND THIS LINE:
+tab_run, tab_manual, tab_jobs, tab_tracker, tab_profile, tab_analytics, tab_docs = st.tabs([
+    "🚀 Search", "🕵️ Manual Hunt", "📊 Matches", "📋 Tracker", "👤 Profile", "📈 Insights", "📂 Docs"
 ])
 
 # --- TAB 1: SEARCH ---
@@ -306,3 +308,71 @@ with tab_analytics:
             with c1: st.bar_chart(df["Score"])
             with c2: st.dataframe(df["Platform"].value_counts())
     else: st.info("Run a search first.")
+
+
+# --- TAB 6: DOCS (RESUMES & COVER LETTERS) ---
+with tab_docs:
+    st.header("📂 Career Documents")
+
+    col1, col2 = st.columns(2)
+
+    # --- LEFT COLUMN: RESUMES (Local Files) ---
+    with col1:
+        st.subheader("📄 Tailored Resumes")
+        resume_dir = "generated_resumes"
+        
+        # Ensure directory exists
+        if not os.path.exists(resume_dir):
+            os.makedirs(resume_dir)
+            
+        # List all files
+        files = os.listdir(resume_dir)
+        files = [f for f in files if f.endswith(".md") or f.endswith(".pdf")]
+        
+        if not files:
+            st.info("No resumes found. Go to 'Matches' and click 'Tailor Resume'.")
+        else:
+            # Sort by newest first
+            files.sort(key=lambda x: os.path.getmtime(os.path.join(resume_dir, x)), reverse=True)
+            
+            for f_name in files:
+                file_path = os.path.join(resume_dir, f_name)
+                # Get creation time
+                t = os.path.getmtime(file_path)
+                date_str = datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M')
+                
+                with st.expander(f"📄 {f_name} ({date_str})"):
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read()
+                    
+                    # Download Button
+                    st.download_button(
+                        label="⬇️ Download",
+                        data=content,
+                        file_name=f_name,
+                        mime="text/markdown",
+                        key=f"dl_doc_{f_name}"
+                    )
+                    
+                    # Preview (First 500 chars)
+                    st.caption("Preview:")
+                    st.code(content[:500] + "...", language="markdown")
+
+    # --- RIGHT COLUMN: COVER LETTERS (Google Sheets) ---
+    with col2:
+        st.subheader("✉️ Cover Letters")
+        
+        # Load from Google Sheets
+        letters = load_cover_letters()
+        
+        if not letters:
+            st.info("No cover letters found. Go to 'Matches' and click 'Draft Letter'.")
+        else:
+            # letters is a dict: {Job_ID: Content}
+            # Let's convert to list to sort if possible, or just iterate
+            for job_id, content in letters.items():
+                with st.expander(f"✉️ Letter for Job ID: {job_id}"):
+                    st.text_area("Content", value=content, height=300, key=f"v_cl_{job_id}")
+                    
+                    # Copy Button (Text only)
+                    st.info("👉 Ctrl+A, Ctrl+C to copy.")

@@ -232,12 +232,13 @@ with tab_jobs:
                             # 2. Log to Google Sheet (The New Manual Step)
                             sheet_url = os.getenv("GOOGLE_SHEET_URL")
                             if sheet_url:
-                                try:
-                                    # We wrap the single job in a list because the function expects a list
-                                    log_jobs_to_sheet([job], sheet_url)
+                                ok = log_jobs_to_sheet([job], sheet_url)
+                                if ok:
                                     st.toast("📝 Logged to Google Sheet!")
-                                except Exception as e:
-                                    st.error(f"Sheet Error: {e}")
+                                else:
+                                    st.error("Sheet Error: Could not log this job. Check credentials/sheet sharing in terminal logs.")
+                            else:
+                                st.warning("Google Sheet URL is not set, so sheet logging was skipped.")
 
                             # 3. Remove from "New Matches" view
                             if job.platform == "Manual Entry":

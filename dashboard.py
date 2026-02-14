@@ -227,7 +227,7 @@ with tab_jobs:
                         
                         if st.button("✅ Track", key=f"trk_{job.id}"):
                             # 1. Save to Local JSON Tracker
-                            save_application(job, "Applied")
+                            save_application(job, status="Applied")
                             
                             # 2. Log to Google Sheet (The New Manual Step)
                             sheet_url = os.getenv("GOOGLE_SHEET_URL")

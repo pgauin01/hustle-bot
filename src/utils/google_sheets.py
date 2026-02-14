@@ -10,12 +10,17 @@ def get_gspread_client():
     """
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # 1. Try Loading from GitHub Secret (String)
-    json_creds = os.getenv("GOOGLE_SHEETS_JSON")
+    # 1. Try Loading from Env Var JSON string
+    # Support both names because other modules in this repo use GOOGLE_CREDENTIALS_JSON.
+    json_creds = os.getenv("GOOGLE_SHEETS_JSON") or os.getenv("GOOGLE_CREDENTIALS_JSON")
     if json_creds:
-        creds_dict = json.loads(json_creds)
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        return gspread.authorize(creds)
+        try:
+            creds_dict = json.loads(json_creds)
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            return gspread.authorize(creds)
+        except Exception as e:
+            print(f"❌ Invalid sheet credentials in env var: {repr(e)}")
+            return None
 
     # 2. Try Loading from Local File
     if os.path.exists("credentials.json"):
@@ -31,7 +36,7 @@ def log_jobs_to_sheet(jobs, sheet_url):
     """
     client = get_gspread_client()
     if not client:
-        return
+        return False
 
     try:
         # Open by URL
@@ -66,7 +71,11 @@ def log_jobs_to_sheet(jobs, sheet_url):
         if rows_to_add:
             sheet.append_rows(rows_to_add)
             print("✅ Successfully logged to Google Sheets.")
+            return True
+
+        return True
             
     except Exception as e:
         # Change this line to use repr(e) to see the full error object
         print(f"❌ Failed to log to Sheets: {repr(e)}")
+        return False

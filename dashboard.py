@@ -36,15 +36,39 @@ except ImportError:
 st.set_page_config(page_title="HustleBot 2.9 (Fully Persistent)", page_icon="💼", layout="wide")
 
 # --- HELPER FUNCTIONS ---
-def suggest_roles(api_key, skills):
-    if not api_key: return []
+def suggest_roles(skills):
+    """
+    Suggests job titles based on skills using Gemini.
+    Automatically finds the API key from Secrets or Env.
+    """
+    # 1. Get API Key
+    api_key = None
+    if hasattr(st, "secrets") and "GOOGLE_API_KEY" in st.secrets:
+        api_key = st.secrets["GOOGLE_API_KEY"]
+    elif os.getenv("GOOGLE_API_KEY"):
+        api_key = os.getenv("GOOGLE_API_KEY")
+        
+    if not api_key:
+        st.error("❌ Google API Key is missing. Add it to Secrets.")
+        return []
+
     try:
+        # 2. Configure Gemini
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        prompt = f"Suggest 5 concise job titles for: {skills}. Return comma-separated."
+        model = genai.GenerativeModel("gemini-2.5-pro")
+        
+        # 3. Generate
+        prompt = f"Suggest 5 concise job titles for someone with these skills: {skills}. Return ONLY the titles, separated by commas."
         response = model.generate_content(prompt)
-        return [t.strip() for t in response.text.strip().split(",") if t.strip()]
-    except: return []
+        
+        # 4. Parse
+        if response.text:
+            return [t.strip() for t in response.text.strip().split(",") if t.strip()]
+        return []
+    except Exception as e:
+        st.error(f"AI Error: {e}")
+        return []
+    
 
 def load_profile():
     if os.path.exists("profile.md"):
@@ -133,8 +157,7 @@ with tab_run:
         
         with st.expander("✨ AI Brainstorm"):
             if st.button("Suggest Roles"):
-                api_key = os.getenv("GOOGLE_API_KEY")
-                st.session_state["role_suggestions"] = suggest_roles(api_key, keywords)
+                st.session_state["role_suggestions"] = suggest_roles(keywords)
             if "role_suggestions" in st.session_state:
                 for r in st.session_state["role_suggestions"]:
                     if st.button(f"📍 {r}"): 

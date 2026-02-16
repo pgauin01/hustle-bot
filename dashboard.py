@@ -328,51 +328,37 @@ with tab_docs:
         
         if not os.path.exists(resume_dir): os.makedirs(resume_dir)
             
-        # Get list of unique base names (ignoring extension)
-        files = os.listdir(resume_dir)
-        # We only care about .md files for the loop, we'll check for matching .pdf inside
-        md_files = [f for f in files if f.endswith(".md")]
+        # Get list of .md files
+        files = [f for f in os.listdir(resume_dir) if f.endswith(".md")]
         
-        if not md_files:
+        if not files:
             st.info("No resumes found.")
         else:
             # Sort by newest
-            md_files.sort(key=lambda x: os.path.getmtime(os.path.join(resume_dir, x)), reverse=True)
+            files.sort(key=lambda x: os.path.getmtime(os.path.join(resume_dir, x)), reverse=True)
             
-            for f_name in md_files:
-                base_name = f_name.replace(".md", "")
-                md_path = os.path.join(resume_dir, f_name)
-                pdf_path = os.path.join(resume_dir, f"{base_name}.pdf")
+            for f_name in files:
+                file_path = os.path.join(resume_dir, f_name)
                 
                 # Get date
-                t = os.path.getmtime(md_path)
+                t = os.path.getmtime(file_path)
                 date_str = datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M')
                 
-                with st.expander(f"📄 {base_name} ({date_str})"):
-                    # Preview Markdown
-                    with open(md_path, "r", encoding="utf-8") as f:
+                with st.expander(f"📄 {f_name} ({date_str})"):
+                    # Preview
+                    with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
                     st.caption("Preview:")
                     st.code(content[:300] + "...", language="markdown")
                     
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        # Download Markdown
-                        st.download_button("⬇️ Markdown", content, f_name)
-                    
-                    with c2:
-                        # Download PDF (If it exists)
-                        if os.path.exists(pdf_path):
-                            with open(pdf_path, "rb") as pdf_file:
-                                st.download_button(
-                                    label="⬇️ PDF",
-                                    data=pdf_file,
-                                    file_name=f"{base_name}.pdf",
-                                    mime="application/pdf",
-                                    key=f"dl_pdf_{base_name}"
-                                )
-                        else:
-                            st.warning("PDF missing")
+                    # Download Markdown Button (PDF removed)
+                    st.download_button(
+                        label="⬇️ Download Markdown",
+                        data=content,
+                        file_name=f_name,
+                        mime="text/markdown",
+                        key=f"dl_md_{f_name}"
+                    )
 
     # --- RIGHT COLUMN: COVER LETTERS (Google Sheets) ---
     with col2:

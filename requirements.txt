@@ -11,5 +11,3 @@ gspread
 langchain-google-genai
 schedule
 beautifulsoup4
-markdown
-xhtml2pdf

@@ -133,6 +133,7 @@ with tab_run:
         
         with st.expander("✨ AI Brainstorm"):
             if st.button("Suggest Roles"):
+                api_key = os.getenv("GOOGLE_API_KEY")
                 st.session_state["role_suggestions"] = suggest_roles(api_key, keywords)
             if "role_suggestions" in st.session_state:
                 for r in st.session_state["role_suggestions"]:

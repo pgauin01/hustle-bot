@@ -79,29 +79,39 @@ if "init_done" not in st.session_state:
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Settings")
-    with st.expander("🔑 Config", expanded=True):
-        if os.path.exists("user_settings.json"):
-            with open("user_settings.json", "r") as f: settings = json.load(f)
-        else: settings = {}
+    st.header("⚙️ Configuration")
+    
+    # Check for secrets/env vars without revealing them
+    has_api = bool(os.getenv("GOOGLE_API_KEY") or (hasattr(st, "secrets") and "GOOGLE_API_KEY" in st.secrets))
+    has_sheet = bool(os.getenv("GOOGLE_SHEET_URL") or (hasattr(st, "secrets") and "GOOGLE_SHEET_URL" in st.secrets))
+    has_creds = bool(os.getenv("GOOGLE_CREDENTIALS_JSON") or (hasattr(st, "secrets") and "GOOGLE_CREDENTIALS_JSON" in st.secrets))
+    has_tele = bool(os.getenv("TELEGRAM_BOT_TOKEN") or (hasattr(st, "secrets") and "TELEGRAM_BOT_TOKEN" in st.secrets))
 
-        api_key = st.text_input("Google API Key", value=settings.get("api_key", ""), type="password")
-        sheet_url = st.text_input("Google Sheet URL", value=settings.get("sheet_url", ""))
-        tele_token = st.text_input("Telegram Bot Token", value=settings.get("tele_token", ""), type="password")
-        tele_chat = st.text_input("Telegram Chat ID", value=settings.get("tele_chat", ""))
-        serp_key = st.text_input("SerpApi Key (Optional)", value=settings.get("serp_key", ""), type="password")
+    with st.expander("🔌 Connection Status", expanded=True):
+        if has_api:
+            st.success("✅ Google Gemini API: Connected")
+        else:
+            st.error("❌ Google Gemini API: Missing")
+            
+        if has_sheet and has_creds:
+            st.success("✅ Google Sheets: Connected")
+        else:
+            if not has_sheet: st.error("❌ Sheet URL: Missing")
+            if not has_creds: st.error("❌ Service Account: Missing")
+            
+        if has_tele:
+            st.success("✅ Telegram Bot: Connected")
+        else:
+            st.warning("⚠️ Telegram: Not Configured")
 
-        if st.button("💾 Save Settings"):
-            with open("user_settings.json", "w") as f:
-                json.dump({"api_key": api_key, "sheet_url": sheet_url, "tele_token": tele_token, "tele_chat": tele_chat, "serp_key": serp_key}, f)
-            st.success("Saved!")
-            st.rerun()
+    st.markdown("---")
+    
+    # Keep the "Reset" or "Clear Cache" button if you want
+    if st.button("🔄 Reload App"):
+        st.cache_data.clear()
+        st.rerun()
 
-    if api_key: os.environ["GOOGLE_API_KEY"] = api_key
-    if sheet_url: os.environ["GOOGLE_SHEET_URL"] = sheet_url
-    if tele_token: os.environ["TELEGRAM_BOT_TOKEN"] = tele_token
-    if tele_chat: os.environ["TELEGRAM_CHAT_ID"] = tele_chat
-    if serp_key: os.environ["SERPAPI_KEY"] = serp_key
+    st.info("💡 **Note:** Credentials are managed securely via Streamlit Secrets.")
 
 st.title("🤖 HustleBot: Career Command Center")
 

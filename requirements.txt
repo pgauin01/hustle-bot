@@ -11,3 +11,4 @@ gspread
 langchain-google-genai
 schedule
 beautifulsoup4
+google-generativeai

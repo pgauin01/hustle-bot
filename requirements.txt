@@ -3,7 +3,7 @@ requests
 python-dotenv
 google-genai
 pandas
-streamlit
+streamlit>=1.40.0
 feedparser
 langchain
 oauth2client

@@ -13,3 +13,6 @@ schedule
 beautifulsoup4
 markdown
 xhtml2pdf
+libcairo2-dev
+pkg-config
+python3-dev

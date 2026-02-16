@@ -8,7 +8,7 @@ from src.graph.workflow import create_graph
 
 # --- CONFIGURATION ---
 TARGET_ROLE = "Python Developer"
-MUST_HAVE_SKILLS = ["Python", "Django", "Remote"]
+MUST_HAVE_SKILLS = ["Python", "Javascript", "Remote"]
 RUN_TIME = "09:30" 
 # Define which sites to scrape
 PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]

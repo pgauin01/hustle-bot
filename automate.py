@@ -10,6 +10,8 @@ from src.graph.workflow import create_graph
 TARGET_ROLE = "Python Developer"
 MUST_HAVE_SKILLS = ["Python", "Django", "Remote"]
 RUN_TIME = "09:30" 
+# Define which sites to scrape
+PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
 
 def load_settings():
     """Smart Loader: Checks JSON first, then falls back to Environment Variables."""
@@ -38,6 +40,7 @@ def job_hunt_task():
     initial_state = {
         "search_query": TARGET_ROLE,
         "must_have_keywords": MUST_HAVE_SKILLS,
+        "selected_platforms": PLATFORMS_TO_SEARCH,
         "raw_results": [], "normalized_jobs": [], "filtered_jobs": []
     }
     try:

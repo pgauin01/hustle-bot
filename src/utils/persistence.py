@@ -139,68 +139,69 @@ def delete_manual_job(job_id):
         if cell: ws.delete_rows(cell.row)
     except: pass
 
-# ... (keep existing imports and functions) ...
-
-# --- 3. COVER LETTERS (REAL IMPLEMENTATION) ---
-def save_cover_letter(job_id, content):
-    """Saves the cover letter text to the 'Cover_Letters' tab."""
+# --- 3. COVER LETTERS (UPDATED) ---
+def save_cover_letter(job_id, content, company="Unknown"):
+    """Saves letter with Company Name."""
     try:
         sh = get_sheet_connection()
         if not sh: return
 
-        # 1. Get or Create Tab
-        try:
-            worksheet = sh.worksheet("Cover_Letters")
-        except:
-            worksheet = sh.add_worksheet(title="Cover_Letters", rows="100", cols="5")
+        try: worksheet = sh.worksheet("Cover_Letters")
+        except: worksheet = sh.add_worksheet(title="Cover_Letters", rows="100", cols="5")
             
-        # 2. Ensure Headers
+        # UPDATE: Check for 4 columns now
         first_row = []
         try: first_row = worksheet.row_values(1)
         except: pass
         
-        if not first_row or first_row[0] != "Job ID":
-            worksheet.insert_row(["Job ID", "Date Created", "Content"], index=1)
+        # Force Header Update if missing or old format
+        if not first_row or first_row[1] != "Company":
+            # If header[1] is "Date Created", it's the old format!
+            if first_row and first_row[1] == "Date Created":
+                print("⚠️ Detected old Cover Letter sheet. Inserting Company column...")
+                worksheet.insert_cols([["Company"] * len(worksheet.col_values(1))], col=2)
+                worksheet.update_cell(1, 2, "Company") # Fix header
+            else:
+                worksheet.insert_row(["Job ID", "Company", "Date Created", "Content"], index=1)
 
-        # 3. Check if Draft Exists (Update vs Append)
         cell = worksheet.find(str(job_id), in_column=1)
+        date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
         
         if cell:
-            # Update existing row (Content is in Col 3)
-            worksheet.update_cell(cell.row, 3, content)
-            # Update date (Col 2)
-            worksheet.update_cell(cell.row, 2, datetime.now().strftime("%Y-%m-%d %H:%M"))
-            print(f"✅ Updated Draft for {job_id}")
+            # Update: Col 2=Company, Col 3=Date, Col 4=Content
+            worksheet.update_cell(cell.row, 2, company)
+            worksheet.update_cell(cell.row, 3, date_str)
+            worksheet.update_cell(cell.row, 4, content)
+            print(f"✅ Updated Draft for {company}")
         else:
-            # Append new row
-            row = [
-                str(job_id),
-                datetime.now().strftime("%Y-%m-%d %H:%M"),
-                content
-            ]
+            row = [str(job_id), company, date_str, content]
             worksheet.append_row(row)
-            print(f"✅ Saved New Draft for {job_id}")
+            print(f"✅ Saved New Draft for {company}")
 
     except Exception as e:
         print(f"❌ Cover Letter Save Error: {e}")
 
 def load_cover_letters():
-    """Returns a dict {job_id: content} of all saved drafts."""
+    """Returns dict: {job_id: {'company': X, 'date': Y, 'content': Z}}"""
     try:
         sh = get_sheet_connection()
         if not sh: return {}
-        
         try: worksheet = sh.worksheet("Cover_Letters")
         except: return {}
 
         data = worksheet.get_all_records()
         letters = {}
         for d in data:
-            # Handle case sensitivity in headers
-            jid = str(d.get("Job ID") or d.get("job id") or "")
-            content = d.get("Content") or d.get("content") or ""
-            if jid and content:
-                letters[jid] = content
+            # Helper for keys
+            def g(k): return str(d.get(k) or d.get(k.lower()) or "")
+            
+            jid = g("Job ID")
+            if jid:
+                letters[jid] = {
+                    "company": g("Company") or "Unknown",
+                    "date": g("Date Created"),
+                    "content": g("Content")
+                }
         return letters
     except Exception as e:
         print(f"❌ Error loading letters: {e}")

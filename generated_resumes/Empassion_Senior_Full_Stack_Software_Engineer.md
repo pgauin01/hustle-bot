@@ -1,8 +1,10 @@
-As the Job Description was unavailable, I have optimized your resume based on best practices for a **Senior Full Stack & AI Engineer** role. This version strengthens your accomplishments and improves readability for both recruiters and Applicant Tracking Systems (ATS).
+As an expert Resume Writer and ATS Optimizer, I have analyzed your profile. The job description was not available, so I have optimized your resume for a typical **Senior Full Stack & AI Engineer** role, highlighting the unique and powerful combination of your skills in modern frontend development, Generative AI, and Web3.
 
-For optimal results, please provide the specific job description, and I can tailor it further by incorporating key terminology and re-ordering skills to match the employer's priorities.
+To fully target a specific job, please perform these two final steps:
+1.  **Re-order the Technical Skills:** Move the skills mentioned earliest and most frequently in the specific job description to the top of each list.
+2.  **Adjust Keywords:** Scan the job description for specific terminology (e.g., "build RESTful services" vs. "develop APIs") and mirror that language in your experience bullet points.
 
-Here is the optimized resume:
+Here is your tailored resume:
 
 # Praful Gaur
 
@@ -18,40 +20,43 @@ Here is the optimized resume:
 
 ## Professional Summary
 
-Results-driven Senior Full Stack Engineer with over 5 years of experience architecting and delivering sophisticated web, mobile, and AI-powered applications. Proven expertise in **React, React Native, and modern frontend frameworks**, complemented by hands-on experience in **Generative AI (LangGraph, Gemini)** and **Web3 technologies**. Adept at building everything from high-performance dashboards to intelligent, autonomous AI agents that solve complex business problems.
+Results-driven Senior Full Stack & AI Engineer with over 5 years of experience architecting and developing intelligent, next-generation applications. My expertise lies at the intersection of **React/React Native**, **Modern Frontend Architecture**, and **Generative AI**, with a proven ability to build everything from complex enterprise dashboards to autonomous AI agents using **LangGraph** and **Gemini 1.5 Pro**. I am passionate about leveraging AI and Web3 technologies to create innovative, high-impact user experiences.
 
 ## Technical Skills
 
-- **AI & Generative AI:** LangGraph, Gemini 1.5 Pro, Agentic Workflows, LLM Orchestration
-- **Frontend & Mobile:** React.js, React Native, JavaScript (ES6+), Redux, HTML5, CSS3, Bootstrap, Tailwind CSS
-- **Backend & Databases:** Node.js, Python, FastAPI, Django, GraphQL, REST APIs, MongoDB, PostgreSQL, SQL
+- **AI & GenAI:** LangGraph, Gemini 1.5 Pro, Agentic Workflows, LLM Orchestration
+- **Frontend & Mobile:** React.js, React Native, Redux, JavaScript (ES6+), HTML5, CSS3, Bootstrap, Tailwind CSS
+- **Backend & Cloud:** Node.js, Python, FastAPI, GraphQL, REST APIs, AWS, Django
+- **Databases:** MongoDB, PostgreSQL, SQL
 - **Web3 & Blockchain:** Solidity, Smart Contracts, Hardhat, Ethers.js, OpenZeppelin, IPFS, ERC-721/ERC-1155
-- **Tools & DevOps:** Git, Docker, AWS, Jest (Testing)
+- **Tools & DevOps:** Git, Docker, Jest (Testing)
 
 ## Key Projects
 
-- **Shadow AI (Daily Planner):** Architected and developed an autonomous daily planner using **LangGraph** and **Gemini 1.5 Pro** to convert natural language into structured, conflict-free schedules via a multi-step agentic workflow.
-- **Nexus Quest (Blockchain RPG):** Engineered a decentralized RPG on the blockchain, implementing on-chain hero management with **Solidity (ERC-721)** and integrating **Ethers.js** for seamless wallet connectivity and real-time state synchronization.
-- **NFT Marketplace:** Built a full-stack NFT marketplace for Ethereum/Solana, developing a custom indexing engine to track on-chain events and leveraging **IPFS** for decentralized metadata storage.
-- **Tech Bridge Network Manager:** Developed a comprehensive, **React-based** management system to streamline network configurations and automate approval workflows for critical router changes.
-- **YESGenie (Yes Bank):** Delivered a secure, enterprise-grade CRM application for Yes Bank using **React Native**, enabling core banking operations on mobile platforms.
+- **Shadow AI (Autonomous Daily Planner):** Architected and developed an autonomous daily planner using **LangGraph** and **Gemini 1.5 Pro** to convert natural language goals into structured, optimized schedules. Engineered a multi-agent workflow for dynamic task prioritization, conflict resolution, and calendar integration.
+- **Nexus Quest (Blockchain RPG):** Engineered a decentralized RPG on the blockchain, developing **Solidity** smart contracts for on-chain hero management and asset ownership (ERC-721). Integrated **Ethers.js** for seamless wallet interaction and real-time game state synchronization.
+- **NFT Marketplace:** Built a full-stack marketplace for minting and trading digital assets on Ethereum/Solana. Developed a custom indexing engine to monitor on-chain events and utilized **IPFS** for decentralized metadata storage, ensuring data permanence and integrity.
+- **Tech Bridge Network Manager:** Delivered a robust internal management system using **React** for configuring network devices and automating multi-level approval workflows for router changes, significantly improving operational efficiency.
+- **YESGenie (Yes Bank):** Developed a secure, high-performance CRM application using **React Native** for internal banking operations, enabling streamlined customer and financial data management.
 
 ## Work Experience
 
 **Senior Software Engineer | GlobalLogic** (May 2024 - July 2024)
-- Led a critical frontend refactoring initiative for an enterprise application, systematically eliminating technical debt to improve codebase stability and maintainability.
+- Spearheaded frontend refactoring for enterprise applications, systematically reducing technical debt and enhancing code stability to improve long-term maintainability and performance.
 
 **Freelance Developer** (Oct 2023 - April 2024)
-- Architected and delivered a full-stack "Store-to-Door" grocery delivery application, creating both the customer-facing mobile app and the web-based administrative dashboard for e-commerce and finance clients.
+- Engineered and launched full-stack applications for clients in Finance and E-commerce, including a comprehensive "Store-to-Door" grocery delivery platform using React and React Native.
+- Designed and implemented secure and scalable backend services and REST APIs to support mobile and web clients.
 
 **Senior Software Engineer | PatchInfotech** (Nov 2020 - Aug 2023)
-- Engineered high-performance, scalable modules for financial applications using **React Native** and **GraphQL**, contributing to a platform handling high-volume transactions.
-- Implemented and managed AWS cloud solutions to ensure application scalability and reliability, while enforcing stringent code quality and security standards.
+- Developed and scaled critical application modules for high-traffic financial platforms using **React Native** and **GraphQL**, delivering a seamless user experience for thousands of users.
+- Architected and deployed backend services on **AWS**, implementing robust testing protocols and CI/CD pipelines to ensure application quality and reliability.
 
 **Web Developer | Creative Highs** (Sept 2018 - Aug 2020)
-- Owned the end-to-end frontend development lifecycle for diverse client projects, diagnosing and resolving complex UI/UX challenges to enhance user engagement and satisfaction.
+- Owned the end-to-end development lifecycle for client-facing web applications, resolving complex UI/UX challenges to deliver intuitive and responsive user experiences.
+- Collaborated with designers and stakeholders to translate project requirements into functional, pixel-perfect interfaces using React.js.
 
 ## Education
 
-**Bachelor of Technology in Information Technology**
-- Babu Banarasi Das Northern India Institute of Technology (2014 - 2018)
+- **Bachelor of Technology in Information Technology**
+  Babu Banarasi Das Northern India Institute of Technology (2014 - 2018)

@@ -56,9 +56,11 @@ def save_profile(content):
 
 # --- INITIALIZE SESSION STATE ---
 if "init_done" not in st.session_state:
+    # UPDATED LOADING LOGIC
     saved_letters = load_cover_letters()
-    for jid, content in saved_letters.items():
-        st.session_state[f"cover_letter_{jid}"] = content
+    for jid, data in saved_letters.items():
+        # Load just the content string for the text area
+        st.session_state[f"cover_letter_{jid}"] = data.get("content", "")
     
     # 1. Load Manual Jobs
     manual_jobs = load_manual_jobs()
@@ -217,7 +219,10 @@ with tab_jobs:
                                 drafts = generate_proposals([job])
                                 content = list(drafts.values())[0]
                                 st.session_state[f"cover_letter_{job.id}"] = content
-                                save_cover_letter(job.id, content)
+                                
+                                # UPDATED SAVE CALL: Pass company name
+                                save_cover_letter(job.id, content, getattr(job, "company", "Unknown"))
+                                
                                 st.rerun()
                         
                         if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
@@ -321,58 +326,70 @@ with tab_docs:
         st.subheader("📄 Tailored Resumes")
         resume_dir = "generated_resumes"
         
-        # Ensure directory exists
-        if not os.path.exists(resume_dir):
-            os.makedirs(resume_dir)
+        if not os.path.exists(resume_dir): os.makedirs(resume_dir)
             
-        # List all files
+        # Get list of unique base names (ignoring extension)
         files = os.listdir(resume_dir)
-        files = [f for f in files if f.endswith(".md") or f.endswith(".pdf")]
+        # We only care about .md files for the loop, we'll check for matching .pdf inside
+        md_files = [f for f in files if f.endswith(".md")]
         
-        if not files:
-            st.info("No resumes found. Go to 'Matches' and click 'Tailor Resume'.")
+        if not md_files:
+            st.info("No resumes found.")
         else:
-            # Sort by newest first
-            files.sort(key=lambda x: os.path.getmtime(os.path.join(resume_dir, x)), reverse=True)
+            # Sort by newest
+            md_files.sort(key=lambda x: os.path.getmtime(os.path.join(resume_dir, x)), reverse=True)
             
-            for f_name in files:
-                file_path = os.path.join(resume_dir, f_name)
-                # Get creation time
-                t = os.path.getmtime(file_path)
+            for f_name in md_files:
+                base_name = f_name.replace(".md", "")
+                md_path = os.path.join(resume_dir, f_name)
+                pdf_path = os.path.join(resume_dir, f"{base_name}.pdf")
+                
+                # Get date
+                t = os.path.getmtime(md_path)
                 date_str = datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M')
                 
-                with st.expander(f"📄 {f_name} ({date_str})"):
-                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with st.expander(f"📄 {base_name} ({date_str})"):
+                    # Preview Markdown
+                    with open(md_path, "r", encoding="utf-8") as f:
                         content = f.read()
-                    
-                    # Download Button
-                    st.download_button(
-                        label="⬇️ Download",
-                        data=content,
-                        file_name=f_name,
-                        mime="text/markdown",
-                        key=f"dl_doc_{f_name}"
-                    )
-                    
-                    # Preview (First 500 chars)
                     st.caption("Preview:")
-                    st.code(content[:500] + "...", language="markdown")
+                    st.code(content[:300] + "...", language="markdown")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        # Download Markdown
+                        st.download_button("⬇️ Markdown", content, f_name)
+                    
+                    with c2:
+                        # Download PDF (If it exists)
+                        if os.path.exists(pdf_path):
+                            with open(pdf_path, "rb") as pdf_file:
+                                st.download_button(
+                                    label="⬇️ PDF",
+                                    data=pdf_file,
+                                    file_name=f"{base_name}.pdf",
+                                    mime="application/pdf",
+                                    key=f"dl_pdf_{base_name}"
+                                )
+                        else:
+                            st.warning("PDF missing")
 
     # --- RIGHT COLUMN: COVER LETTERS (Google Sheets) ---
     with col2:
         st.subheader("✉️ Cover Letters")
         
-        # Load from Google Sheets
         letters = load_cover_letters()
         
         if not letters:
-            st.info("No cover letters found. Go to 'Matches' and click 'Draft Letter'.")
+            st.info("No cover letters found.")
         else:
-            # letters is a dict: {Job_ID: Content}
-            # Let's convert to list to sort if possible, or just iterate
-            for job_id, content in letters.items():
-                with st.expander(f"✉️ Letter for Job ID: {job_id}"):
+            # Loop through the dictionary
+            for job_id, data in letters.items():
+                company = data.get("company", "Unknown")
+                date = data.get("date", "")
+                content = data.get("content", "")
+                
+                # UPDATED LABEL: Shows Company Name
+                with st.expander(f"✉️ {company} ({date})"):
                     st.text_area("Content", value=content, height=300, key=f"v_cl_{job_id}")
-                    
-                    # Copy Button (Text only)
                     st.info("👉 Ctrl+A, Ctrl+C to copy.")

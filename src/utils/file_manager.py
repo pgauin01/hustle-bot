@@ -20,3 +20,17 @@ def save_tailored_resume(content, company, title):
         f.write(content)
         
     return md_filename
+
+def delete_resume(filename):
+    """
+    Deletes a specific resume file from the 'generated_resumes' folder.
+    """
+    try:
+        file_path = os.path.join("generated_resumes", filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            return True
+        return False
+    except Exception as e:
+        print(f"❌ Error deleting resume: {e}")
+        return False

@@ -21,7 +21,7 @@ def score_jobs_with_resume(jobs, resume_text):
         return jobs
 
     # 1. Setup the Brain (Gemini Flash is fast & cheap)
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.1)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.1)
 
     # 2. The "Career Coach" Prompt
     prompt_template = """

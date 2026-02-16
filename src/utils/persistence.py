@@ -206,3 +206,27 @@ def load_cover_letters():
     except Exception as e:
         print(f"❌ Error loading letters: {e}")
         return {}
+    
+
+def delete_cover_letter(job_id):
+    """
+    Deletes the cover letter row for the given Job ID.
+    """
+    try:
+        sh = get_sheet_connection()
+        if not sh: return False
+        
+        ws = sh.worksheet("Cover_Letters")
+        cell = ws.find(str(job_id), in_column=1)
+        
+        if cell:
+            ws.delete_rows(cell.row)
+            print(f"✅ Deleted Cover Letter for {job_id}")
+            return True
+        else:
+            print(f"⚠️ Cover Letter {job_id} not found to delete.")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error deleting cover letter: {e}")
+        return False    

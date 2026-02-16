@@ -1,47 +1,54 @@
 import os
-from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+import google.generativeai as genai
 from ..models.job import Job
 
-def tailor_resume(job: Job, base_resume: str) -> str:
+def tailor_resume(job : Job, profile_content:str) -> str:
     """
-    Rewrites the base resume to highlight skills relevant to the specific job.
+    Tailors the resume using Gemini.
     """
     api_key = os.getenv("GOOGLE_API_KEY")
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro", # Use Pro for better writing
-        google_api_key=api_key,
-        temperature=0.3
-    )
+    if not api_key:
+        return profile_content  # Fallback if no API key
 
-    prompt = PromptTemplate.from_template("""
-    You are an expert Resume Writer & ATS Optimizer.
-    
-    JOB DESCRIPTION:
-    {job_description}
-    
-    CANDIDATE PROFILE (Markdown):
-    {profile}
-    
-    TASK:
-    Rewrite the Candidate Profile to target this specific job.
-    1. SUMMARY: Rewrite the professional summary to mention the specific role title and matching keywords.
-    2. SKILLS: Re-order technical skills so the ones mentioned in the Job Description appear FIRST.
-    3. BULLET POINTS: Tweak the experience bullet points to use the same terminology as the JD (e.g., if JD says "Restful Services", change "API" to "Restful Services").
-    4. Do NOT invent lies. Only rephrase existing experience.
-    5. Keep the Markdown format.
-    
-    OUTPUT:
-    The full tailored markdown resume.
-    """)
+    # 1. Check if we actually have job details
+    if not job.description or len(job.description) < 50:
+        print(f"⚠️ Warning: Job description for {job.title} is empty or too short.")
+        # We still run it, but we know it will be generic.
 
     try:
-        chain = prompt | llm
-        response = chain.invoke({
-            "job_description": job.description[:5000], # Truncate to fit context
-            "profile": base_resume
-        })
-        return response.content
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.5-pro")
+        
+        # 2. STRICT PROMPT
+        prompt = f"""
+        You are an expert Resume Writer. 
+        Your task is to tailor the following resume for the specific job description provided.
+        
+        JOB TITLE: {job.title} at {job.company}
+        JOB DESCRIPTION: 
+        {job.description}
+        
+        CANDIDATE PROFILE:
+        {profile_content}
+        
+        RULES:
+        1. Return ONLY the markdown content. 
+        2. DO NOT include any introductory text like "Here is the resume" or "I have optimized...".
+        3. Start directly with the header (e.g., "# Name").
+        4. Optimize keywords for ATS based on the job description.
+        """
+        
+        response = model.generate_content(prompt)
+        content = response.text
+        
+        # 3. CLEANUP LOGIC (The Fix)
+        # If the AI still adds chatty text, we strip everything before the first header.
+        if "# " in content:
+            # Keep everything starting from the first header
+            content = content[content.find("# "):]
+            
+        return content
+
     except Exception as e:
-        print(f"❌ Resume Tailoring Failed: {e}")
-        return base_resume # Fallback to original
+        print(f"❌ Resume Tailoring Error: {e}")
+        return profile_content

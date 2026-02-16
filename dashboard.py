@@ -3,6 +3,8 @@ import os
 import json
 import pandas as pd
 import time
+import requests
+from bs4 import BeautifulSoup
 
 # --- IMPORTS ---
 from src.graph.workflow import create_graph
@@ -15,6 +17,7 @@ from src.llm.scoring import score_jobs_with_resume
 
 # PERSISTENCE IMPORTS
 from src.utils.persistence import (
+    delete_cover_letter,
     save_manual_job, 
     load_manual_jobs, 
     delete_manual_job, 
@@ -69,6 +72,36 @@ def suggest_roles(skills):
         st.error(f"AI Error: {e}")
         return []
     
+def smart_fetch_description(url):
+    """
+    Attempts to fetch job description text from ANY url.
+    """
+    try:
+        # 1. Use a browser-like User-Agent to avoid getting blocked
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            
+            # 2. Cleanup: Remove scripts, styles, and navbars
+            for script in soup(["script", "style", "nav", "footer", "header"]):
+                script.decompose()
+            
+            # 3. Get text and limit length (Gemini has a limit)
+            text = soup.get_text(separator="\n")
+            
+            # Clean up extra whitespace
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            clean_text = "\n".join(lines)
+            
+            return clean_text[:8000] # Return first 8000 chars
+    except Exception as e:
+        print(f"❌ Smart Fetch Error: {e}")
+    
+    return ""    
 
 def load_profile():
     if os.path.exists("profile.md"):
@@ -262,11 +295,33 @@ with tab_jobs:
                         if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
                             prof = load_profile()
                             if prof:
-                                with st.spinner("Tailoring..."):
-                                    path = save_tailored_resume(tailor_resume(job, prof), job.company, job.title)
-                                    st.session_state[f"resume_{job.id}"] = path
+                                with st.spinner("🔍 Fetching full details & Tailoring..."):
+                                    
+                                    # --- UNIVERSAL RE-FETCH LOGIC ---
+                                    # Check if description is missing, short, or the placeholder
+                                    if not job.description or len(job.description) < 100 or "unavailable" in job.description:
+                                        print(f"🔄 Re-fetching details for: {job.title} ({job.platform})")
+                                        
+                                        # Try to get real text from the URL
+                                        new_desc = smart_fetch_description(job.url)
+                                        
+                                        if new_desc:
+                                            job.description = new_desc
+                                            print("✅ Successfully fetched fresh description.")
+                                        else:
+                                            st.warning(f"Could not fetch details from {job.platform}. Resume might be generic.")
+                                    
+                                    # --- PROCEED WITH TAILORING ---
+                                    # Now job.description has the real text (if fetch worked)
+                                    resume_content = tailor_resume(job, prof)
+                                    
+                                    # Save
+                                    path = save_tailored_resume(resume_content, getattr(job, "company", "Unknown"), job.title)
+                                    
+                                    st.success(f"Generated: {path}")
                                     st.rerun()
-                            else: st.error("Profile is empty!")
+                            else: 
+                                st.error("Profile is empty! Update it in the Profile tab.")
                         
                         # --- TRACKING LOGIC ---
                         if st.button("✅ Track", key=f"trk_{job.id}"):
@@ -352,6 +407,10 @@ with tab_analytics:
 # --- TAB 6: DOCS (RESUMES & COVER LETTERS) ---
 with tab_docs:
     st.header("📂 Career Documents")
+    
+    # Refresh button (useful after manual edits)
+    if st.button("🔄 Refresh List"):
+        st.rerun()
 
     col1, col2 = st.columns(2)
 
@@ -359,22 +418,17 @@ with tab_docs:
     with col1:
         st.subheader("📄 Tailored Resumes")
         resume_dir = "generated_resumes"
-        
         if not os.path.exists(resume_dir): os.makedirs(resume_dir)
             
-        # Get list of .md files
         files = [f for f in os.listdir(resume_dir) if f.endswith(".md")]
         
         if not files:
             st.info("No resumes found.")
         else:
-            # Sort by newest
             files.sort(key=lambda x: os.path.getmtime(os.path.join(resume_dir, x)), reverse=True)
             
             for f_name in files:
                 file_path = os.path.join(resume_dir, f_name)
-                
-                # Get date
                 t = os.path.getmtime(file_path)
                 date_str = datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M')
                 
@@ -385,31 +439,45 @@ with tab_docs:
                     st.caption("Preview:")
                     st.code(content[:300] + "...", language="markdown")
                     
-                    # Download Markdown Button (PDF removed)
-                    st.download_button(
-                        label="⬇️ Download Markdown",
-                        data=content,
-                        file_name=f_name,
-                        mime="text/markdown",
-                        key=f"dl_md_{f_name}"
-                    )
+                    c1, c2 = st.columns([1, 1])
+                    with c1:
+                        st.download_button("⬇️ Download", content, f_name)
+                    with c2:
+                        # DELETE BUTTON
+                        if st.button("🗑️ Delete", key=f"del_res_{f_name}"):
+                            from src.utils.file_manager import delete_resume
+                            if delete_resume(f_name):
+                                st.success(f"Deleted {f_name}")
+                                time.sleep(0.5)
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete.")
 
     # --- RIGHT COLUMN: COVER LETTERS (Google Sheets) ---
     with col2:
         st.subheader("✉️ Cover Letters")
-        
         letters = load_cover_letters()
         
         if not letters:
             st.info("No cover letters found.")
         else:
-            # Loop through the dictionary
             for job_id, data in letters.items():
                 company = data.get("company", "Unknown")
                 date = data.get("date", "")
                 content = data.get("content", "")
                 
-                # UPDATED LABEL: Shows Company Name
                 with st.expander(f"✉️ {company} ({date})"):
-                    st.text_area("Content", value=content, height=300, key=f"v_cl_{job_id}")
-                    st.info("👉 Ctrl+A, Ctrl+C to copy.")
+                    st.text_area("Content", value=content, height=200, key=f"v_cl_{job_id}")
+                    
+                    c1, c2 = st.columns([1, 1])
+                    with c1:
+                        st.info("👉 Ctrl+A, Ctrl+C to copy")
+                    with c2:
+                        # DELETE BUTTON
+                        if st.button("🗑️ Delete", key=f"del_cl_{job_id}"):
+                            if delete_cover_letter(job_id):
+                                st.success(f"Deleted letter for {company}")
+                                time.sleep(1) # Give API time to sync
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete.")

@@ -39,38 +39,27 @@ except ImportError:
 st.set_page_config(page_title="HustleBot 2.9 (Fully Persistent)", page_icon="💼", layout="wide")
 
 # --- HELPER FUNCTIONS ---
-def suggest_roles(skills):
+def suggest_roles(skills=""):
     """
-    Suggests job titles based on skills using Gemini.
-    Automatically finds the API key from Secrets or Env.
+    Returns a hardcoded list of targeted AI & Full Stack roles tailored to the user's profile.
     """
-    # 1. Get API Key
-    api_key = None
-    if hasattr(st, "secrets") and "GOOGLE_API_KEY" in st.secrets:
-        api_key = st.secrets["GOOGLE_API_KEY"]
-    elif os.getenv("GOOGLE_API_KEY"):
-        api_key = os.getenv("GOOGLE_API_KEY")
-        
-    if not api_key:
-        st.error("❌ Google API Key is missing. Add it to Secrets.")
-        return []
-
-    try:
-        # 2. Configure Gemini
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-pro")
-        
-        # 3. Generate
-        prompt = f"Suggest 5 concise job titles for someone with these skills: {skills}. Return ONLY the titles, separated by commas."
-        response = model.generate_content(prompt)
-        
-        # 4. Parse
-        if response.text:
-            return [t.strip() for t in response.text.strip().split(",") if t.strip()]
-        return []
-    except Exception as e:
-        st.error(f"AI Error: {e}")
-        return []
+    return [
+        "Senior Full Stack Engineer",
+        "AI Application Engineer",
+        "LLM Engineer",
+        "Generative AI Engineer",
+        "RAG Engineer",
+        "AI Product Engineer",
+        "AI Systems Engineer",
+        "Founding Engineer (AI)",
+        "Full Stack AI Engineer",
+        "AI Solutions Engineer",
+        "Senior Full Stack Engineer",
+        "AI Application Engineer",
+        "AI Systems Engineer",
+        "RAG & LLM Applications Engineer",
+        "Generative AI Software Engineer",
+    ]
     
 def smart_fetch_description(url):
     """
@@ -177,54 +166,68 @@ tab_run, tab_manual, tab_jobs, tab_tracker, tab_profile, tab_analytics, tab_docs
     "🚀 Search", "🕵️ Manual Hunt", "📊 Matches", "📋 Tracker", "👤 Profile", "📈 Insights", "📂 Docs"
 ])
 
-# --- TAB 1: SEARCH ---
+# --- TAB 1: RUN JOB HUNT ---
 with tab_run:
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        st.subheader("🎯 Target")
-        if "suggested_role" not in st.session_state: st.session_state["suggested_role"] = "Python Developer"
-        query = st.text_input("Job Role", value=st.session_state["suggested_role"])
-        keywords = st.text_input("Must-Have Skills", value="Python, Django")
-        all_platforms = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
-        selected_platforms = st.multiselect("Select Platforms:", options=all_platforms, default=["RemoteOK"])
-        
-        with st.expander("✨ AI Brainstorm"):
-            if st.button("Suggest Roles"):
-                st.session_state["role_suggestions"] = suggest_roles(keywords)
-            if "role_suggestions" in st.session_state:
-                for r in st.session_state["role_suggestions"]:
-                    if st.button(f"📍 {r}"): 
-                        st.session_state["suggested_role"] = r
-                        st.rerun()
-        st.markdown("---")
-        run_btn = st.button("🚀 Start Job Hunt", type="primary", use_container_width=True)
+    st.header("🚀 Start Job Hunt")
 
-    with col2:
-        if run_btn:
-            st.subheader("⚙️ Log")
-            with st.container():
-                st.info("Starting Workflow...")
-                if not selected_platforms: st.error("Please select at least one platform.")
-                else:
-                    must_haves = [k.strip() for k in keywords.split(",") if k.strip()]
-                    initial_state = {
-                        "search_query": query, 
-                        "must_have_keywords": must_haves, 
-                        "selected_platforms": selected_platforms,
-                        "raw_results": [], "normalized_jobs": [], "filtered_jobs": []
-                    }
-                    try:
-                        app = create_graph()
-                        final_state = app.invoke(initial_state)
-                        
-                        # Reload everything to show new results
-                        manual = load_manual_jobs()
-                        bot = load_new_matches()
-                        
-                        st.session_state["results"] = {"filtered_jobs": manual + bot}
-                        st.success("✅ Workflow Complete!")
-                        st.rerun()
-                    except Exception as e: st.error(f"❌ Workflow Failed: {e}")
+    # 1. Initialize session state for the Search Query
+    if "search_query_input" not in st.session_state:
+        st.session_state["search_query_input"] = "Senior Full Stack Engineer"
+
+    # 2. Main Text Input (Tied to the session state via 'key')
+    query = st.text_input("Target Job Role", key="search_query_input")
+    
+    # (Notice: The "must_have_skills" input has been deleted here)
+
+    st.markdown("---")
+
+    # 3. Targeted Roles Section (Hardcoded List)
+    st.success("👉 **Best fit for you:** Senior Full Stack Engineer | AI Systems | RAG & LLM Applications")
+    st.write("### Targeted Roles")
+    
+    # Get the targeted roles (ensure suggest_roles is updated as we discussed previously)
+    roles = suggest_roles() 
+    
+    # Create a grid of buttons
+    cols = st.columns(3)
+    for i, role in enumerate(roles):
+        # When clicked, update the text input's session state key instantly
+        cols[i % 3].button(
+            role, 
+            key=f"role_btn_{i}", 
+            on_click=lambda r=role: st.session_state.update({"search_query_input": r})
+        )
+
+    st.markdown("---")
+
+    # 4. RUN JOB HUNT BUTTON
+    if st.button("🔍 Run Job Hunt Now"):
+        if query:
+            with st.spinner(f"Hunting for '{query}' across platforms..."):
+                
+                # We pass an empty list [] for must_have_keywords since you deleted the input
+                initial_state = {
+                    "search_query": query,
+                    "must_have_keywords": [], # <-- Empty list prevents backend errors
+                    "selected_platforms": ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"],
+                    "raw_results": [],
+                    "normalized_jobs": [],
+                    "filtered_jobs": []
+                }
+                
+                try:
+                    from src.graph.workflow import create_graph
+                    app = create_graph()
+                    app.invoke(initial_state)
+                    
+                    st.success("✅ Job Hunt Complete! Check the 'Matches' tab.")
+                    time.sleep(1)
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"❌ Workflow Crashed: {e}")
+        else:
+            st.warning("⚠️ Please enter a job role to search for.")
 
 # --- TAB 2: MANUAL HUNT ---
 with tab_manual:
@@ -260,93 +263,123 @@ with tab_manual:
 
 # --- TAB 3: MATCHES ---
 with tab_jobs:
+    st.header("📊 Job Matches")
+
+    # --- 1. FILTER UI ---
+    f_col1, f_col2 = st.columns(2)
+    with f_col1:
+        min_score = st.slider("🎯 Minimum Relevance Score", min_value=0, max_value=100, value=75, step=5)
+    with f_col2:
+        date_filter = st.selectbox(
+            "📅 Date Posted", 
+            ["All Time", "Today", "Last 3 Days", "Last 7 Days", "Last 14 Days"]
+        )
+
+    st.markdown("---")
+
     if "results" in st.session_state:
         results = st.session_state["results"]
-        jobs = results.get("filtered_jobs", [])
+        # We rename this to 'all_jobs' to distinguish from the filtered view
+        all_jobs = results.get("filtered_jobs", []) 
         
-        if not jobs:
+        if not all_jobs:
             st.info("🎉 No pending matches. Run a search or check Tracker.")
         else:
-            st.metric("Pending Matches", len(jobs))
-            for job in jobs:
-                score = job.relevance_score
-                color = "green" if score >= 80 else "orange" if score >= 50 else "red"
-                
-                with st.expander(f"**:{color}[{score}/100]** {job.title} @ {getattr(job, 'company', 'Unknown')}"):
-                    c1, c2 = st.columns([3, 1])
-                    with c1:
-                        st.markdown(f"**Source:** {job.platform}")
-                        st.markdown(f"**Why:** {job.reasoning}")
-                        if hasattr(job, 'gap_analysis'): st.info(f"{job.gap_analysis}")
-                        st.markdown(f"[🔗 **Link**]({job.url})")
-
-                    with c2:
-                        if st.button("✍️ Draft Letter", key=f"cl_{job.id}"):
-                            with st.spinner("Generating..."):
-                                drafts = generate_proposals([job])
-                                content = list(drafts.values())[0]
-                                st.session_state[f"cover_letter_{job.id}"] = content
-                                
-                                # UPDATED SAVE CALL: Pass company name
-                                save_cover_letter(job.id, content, getattr(job, "company", "Unknown"))
-                                
-                                st.rerun()
-                        
-                        if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
-                            prof = load_profile()
-                            if prof:
-                                with st.spinner("🔍 Fetching full details & Tailoring..."):
-                                    
-                                    # --- UNIVERSAL RE-FETCH LOGIC ---
-                                    # Check if description is missing, short, or the placeholder
-                                    if not job.description or len(job.description) < 100 or "unavailable" in job.description:
-                                        print(f"🔄 Re-fetching details for: {job.title} ({job.platform})")
-                                        
-                                        # Try to get real text from the URL
-                                        new_desc = smart_fetch_description(job.url)
-                                        
-                                        if new_desc:
-                                            job.description = new_desc
-                                            print("✅ Successfully fetched fresh description.")
-                                        else:
-                                            st.warning(f"Could not fetch details from {job.platform}. Resume might be generic.")
-                                    
-                                    # --- PROCEED WITH TAILORING ---
-                                    # Now job.description has the real text (if fetch worked)
-                                    resume_content = tailor_resume(job, prof)
-                                    
-                                    # Save
-                                    path = save_tailored_resume(resume_content, getattr(job, "company", "Unknown"), job.title)
-                                    
-                                    st.success(f"Generated: {path}")
-                                    st.rerun()
-                            else: 
-                                st.error("Profile is empty! Update it in the Profile tab.")
-                        
-                        # --- TRACKING LOGIC ---
-                        if st.button("✅ Track", key=f"trk_{job.id}"):
-                            save_application(job, "Applied")
-                            st.toast("📝 Saved to Tracker!")
+            # --- 2. APPLY FILTERS ---
+            display_jobs = []
+            for job in all_jobs:
+                # Filter by Score
+                if job.relevance_score < min_score:
+                    continue
+                    
+                # Filter by Date
+                if date_filter != "All Time":
+                    posted_date_str = getattr(job, "posted_at", "")
+                    if posted_date_str:
+                        try:
+                            job_date = datetime.strptime(posted_date_str, "%Y-%m-%d").date()
+                            today = datetime.now().date()
+                            days_diff = (today - job_date).days
                             
-                            # DELETE from source sheet
-                            if job.platform == "Manual Entry":
-                                delete_manual_job(job.id)
-                            else:
-                                delete_new_match(job.id) # <--- DELETE FROM NEW MATCHES
-                                
-                            # Update UI
-                            st.session_state["results"]["filtered_jobs"] = [j for j in jobs if j.id != job.id]
-                            st.rerun()
+                            if date_filter == "Today" and days_diff > 0: continue
+                            if date_filter == "Last 3 Days" and days_diff > 3: continue
+                            if date_filter == "Last 7 Days" and days_diff > 7: continue
+                            if date_filter == "Last 14 Days" and days_diff > 14: continue
+                        except ValueError:
+                            pass # Skip filtering if date format is weird
+                            
+                display_jobs.append(job)
 
-                        if st.button("❌ Dismiss", key=f"d_{job.id}"):
-                            # DELETE from source sheet
-                            if job.platform == "Manual Entry":
-                                delete_manual_job(job.id)
-                            else:
-                                delete_new_match(job.id) # <--- DELETE FROM NEW MATCHES
+            # --- 3. RENDER JOBS ---
+            if not display_jobs:
+                st.warning("No jobs match your current filters. Try lowering the score or expanding the date range.")
+            else:
+                st.metric("Visible Matches", len(display_jobs))
+                
+                for job in display_jobs:
+                    score = job.relevance_score
+                    color = "green" if score >= 80 else "orange" if score >= 50 else "red"
+                    
+                    with st.expander(f"**:{color}[{score}/100]** {job.title} @ {getattr(job, 'company', 'Unknown')}"):
+                        c1, c2 = st.columns([3, 1])
+                        with c1:
+                            st.markdown(f"**Source:** {job.platform}")
+                            st.markdown(f"**Why:** {job.reasoning}")
+                            if hasattr(job, 'gap_analysis'): st.info(f"{job.gap_analysis}")
+                            st.markdown(f"[🔗 **Link**]({job.url})")
+
+                        with c2:
+                            if st.button("✍️ Draft Letter", key=f"cl_{job.id}"):
+                                with st.spinner("Generating..."):
+                                    drafts = generate_proposals([job])
+                                    content = list(drafts.values())[0]
+                                    st.session_state[f"cover_letter_{job.id}"] = content
+                                    save_cover_letter(job.id, content, getattr(job, "company", "Unknown"))
+                                    st.rerun()
+                            
+                            if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
+                                prof = load_profile()
+                                if prof:
+                                    with st.spinner("🔍 Fetching full details & Tailoring..."):
+                                        if not job.description or len(job.description) < 100 or "unavailable" in job.description:
+                                            print(f"🔄 Re-fetching details for: {job.title} ({job.platform})")
+                                            new_desc = smart_fetch_description(job.url)
+                                            if new_desc:
+                                                job.description = new_desc
+                                                print("✅ Successfully fetched fresh description.")
+                                            else:
+                                                st.warning(f"Could not fetch details from {job.platform}. Resume might be generic.")
+                                        
+                                        resume_content = tailor_resume(job, prof)
+                                        path = save_tailored_resume(resume_content, getattr(job, "company", "Unknown"), job.title)
+                                        st.success(f"Generated: {path}")
+                                        st.rerun()
+                                else: 
+                                    st.error("Profile is empty! Update it in the Profile tab.")
+                            
+                            # --- TRACKING LOGIC ---
+                            if st.button("✅ Track", key=f"trk_{job.id}"):
+                                save_application(job, "Applied")
+                                st.toast("📝 Saved to Tracker!")
                                 
-                            st.session_state["results"]["filtered_jobs"] = [j for j in jobs if j.id != job.id]
-                            st.rerun()
+                                if job.platform == "Manual Entry":
+                                    delete_manual_job(job.id)
+                                else:
+                                    delete_new_match(job.id)
+                                    
+                                # CRITICAL FIX: Keep the hidden jobs in the session state!
+                                st.session_state["results"]["filtered_jobs"] = [j for j in all_jobs if j.id != job.id]
+                                st.rerun()
+
+                            if st.button("❌ Dismiss", key=f"d_{job.id}"):
+                                if job.platform == "Manual Entry":
+                                    delete_manual_job(job.id)
+                                else:
+                                    delete_new_match(job.id)
+                                    
+                                # CRITICAL FIX: Keep the hidden jobs in the session state!
+                                st.session_state["results"]["filtered_jobs"] = [j for j in all_jobs if j.id != job.id]
+                                st.rerun()
 
 # --- TAB 4: TRACKER ---
 with tab_tracker:

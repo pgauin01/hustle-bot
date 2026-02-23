@@ -176,6 +176,14 @@ with tab_run:
 
     # 2. Main Text Input (Tied to the session state via 'key')
     query = st.text_input("Target Job Role", key="search_query_input")
+
+    # 3. ADD THIS BACK: Platform Selection
+    available_platforms = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
+    selected_platforms = st.multiselect(
+        "🌐 Target Platforms", 
+        options=available_platforms,
+        default=available_platforms # Checks all of them by default
+    )
     
     # (Notice: The "must_have_skills" input has been deleted here)
 
@@ -209,7 +217,7 @@ with tab_run:
                 initial_state = {
                     "search_query": query,
                     "must_have_keywords": [], # <-- Empty list prevents backend errors
-                    "selected_platforms": ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"],
+                    "selected_platforms":selected_platforms,
                     "raw_results": [],
                     "normalized_jobs": [],
                     "filtered_jobs": []

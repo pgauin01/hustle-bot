@@ -1,74 +1,81 @@
 import os
-import json
-import time
-import schedule
 import sys
 from datetime import datetime
 from src.graph.workflow import create_graph
 
-# --- CONFIGURATION ---
-TARGET_ROLE = "Python Developer"
-MUST_HAVE_SKILLS = ["Python", "Javascript", "Remote"]
-RUN_TIME = "09:30" 
-# Define which sites to scrape
+# --- 1. THE 15 TARGETED ROLES ---
+TARGET_ROLES = [
+    "Senior Full Stack Engineer", "AI Application Engineer", "LLM Engineer",
+    "Generative AI Engineer", "RAG Engineer", "AI Product Engineer",
+    "AI Systems Engineer", "Founding Engineer (AI)", "Full Stack AI Engineer",
+    "Machine Learning Engineer", "Backend Engineer (AI)", "Principal AI Engineer",
+    "Staff Software Engineer", "React Native AI Engineer", "Python AI Engineer"
+]
+
 PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
 
-def load_settings():
-    """Smart Loader: Checks JSON first, then falls back to Environment Variables."""
-    # 1. Try Local JSON (For when you run it on your laptop)
-    if os.path.exists("user_settings.json"):
-        print("📂 Loading settings from local JSON...")
-        with open("user_settings.json", "r") as f:
-            settings = json.load(f)
-            if settings.get("api_key"): os.environ["GOOGLE_API_KEY"] = settings["api_key"]
-            if settings.get("sheet_url"): os.environ["GOOGLE_SHEET_URL"] = settings["sheet_url"]
-            if settings.get("tele_token"): os.environ["TELEGRAM_BOT_TOKEN"] = settings["tele_token"]
-            if settings.get("tele_chat"): os.environ["TELEGRAM_CHAT_ID"] = settings["tele_chat"]
-        return True
-    
-    # 2. Try Environment Variables (For GitHub Actions / Cloud)
-    elif os.getenv("GOOGLE_API_KEY"):
-        print("☁️ Loading settings from Environment Variables...")
-        return True
-        
-    else:
-        print("❌ Error: No API Keys found (checked json and env vars).")
-        return False
-
-def job_hunt_task():
-    print(f"\n🚀 Starting Job Hunt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    initial_state = {
-        "search_query": TARGET_ROLE,
-        "must_have_keywords": MUST_HAVE_SKILLS,
-        "selected_platforms": PLATFORMS_TO_SEARCH,
-        "raw_results": [], "normalized_jobs": [], "filtered_jobs": []
-    }
+def get_already_saved_ids():
+    """Reads Google Sheets to find jobs we already saved previously."""
     try:
-        app = create_graph()
-        app.invoke(initial_state)
-        print("✅ Job Hunt Finished.")
+        from src.utils.persistence import get_sheet_connection
+        sh = get_sheet_connection()
+        if not sh: return []
+        ws = sh.worksheet("New_Matches")
+        return ws.col_values(1)[1:] # Column 1 has IDs, skip header
+    except:
+        return []
+
+def get_role_for_current_time():
+    """Calculates exactly which role to run based on the current UTC time."""
+    now = datetime.utcnow()
+    minutes_since_midnight = now.hour * 60 + now.minute
+    
+    # Divide the day into 96-minute chunks to get an index from 0 to 14
+    index = (minutes_since_midnight // 96) % len(TARGET_ROLES)
+    return TARGET_ROLES[index]
+
+def job_hunt_task(forced_role=None):
+    
+    # Use the forced role if provided, otherwise calculate the time-based role
+    role = forced_role if forced_role else get_role_for_current_time()
+    
+    if forced_role:
+        print(f"\n🧪 LOCAL TEST MODE: Forcing hunt for {role}")
+    else:
+        print(f"\n⏰ Waking up for scheduled interval! Assigned Role: {role}")
+    
+    # 2. Get historical IDs to prevent duplicates
+    global_seen_ids = get_already_saved_ids()
+    print(f"📚 Loaded {len(global_seen_ids)} existing jobs to prevent duplicates.")
+
+    app = create_graph()
+    
+    initial_state = {
+        "search_query": role,
+        "must_have_keywords": [],
+        "selected_platforms": PLATFORMS_TO_SEARCH,
+        "raw_results": [], 
+        "normalized_jobs": [], 
+        "filtered_jobs": [],
+        "seen_job_ids": global_seen_ids 
+    }
+    
+    try:
+        results = app.invoke(initial_state)
+        found_jobs = results.get("filtered_jobs", [])
+        print(f"✅ Finished. Saved {len(found_jobs)} Top Matches for {role}.")
     except Exception as e:
-        print(f"❌ Workflow Crashed: {e}")
+        print(f"❌ Error during '{role}': {e}")
 
+# 3. Add the command-line listener
 if __name__ == "__main__":
-    if not load_settings():
-        exit(1)
-
-    # --- MODE 1: CLOUD / SINGLE RUN ---
-    # Run with: python automate.py --once
-    if "--once" in sys.argv:
-        print("⚡ Single Run Mode Activated")
+    import sys
+    
+    # If you type: python automate.py --role "RAG Engineer"
+    if len(sys.argv) == 3 and sys.argv[1] == "--role":
+        target = sys.argv[2]
+        job_hunt_task(forced_role=target)
+        
+    # If you just type: python automate.py
+    else:
         job_hunt_task()
-        exit(0)
-
-    # --- MODE 2: LOCAL LOOP ---
-    # Run with: python automate.py
-    print(f"🤖 HustleBot Loop Mode. Schedule: {RUN_TIME}")
-    schedule.every().day.at(RUN_TIME).do(job_hunt_task)
-    
-    # Run once on startup just to be sure
-    job_hunt_task()
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(60)

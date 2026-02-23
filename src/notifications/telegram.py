@@ -1,41 +1,60 @@
-import requests
 import os
+import requests
 
-def send_telegram_alert(job_title: str, job_url: str, score: int, reasoning: str, proposal: str = None):
+def send_telegram_alert(job):
     """
-    Sends a formatted alert to your Telegram.
+    Sends a highly formatted HTML message to your Telegram app.
     """
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
-    if not bot_token or not chat_id:
-        print("⚠️ Telegram credentials missing. Skipping alert.")
-        return
+    if not token or not chat_id:
+        print("⚠️ Telegram credentials missing. Skipping notification.")
+        return False
 
-    # Format the message (HTML style)
-    emoji = "🔥" if score >= 90 else "✨"
-    
-    message = (
-        f"{emoji} <b>NEW MATCH FOUND!</b> ({score}/100)\n\n"
-        f"<b>Role:</b> {job_title}\n"
-        f"<b>Reason:</b> {reasoning}\n"
-        f"<b>Link:</b> <a href='{job_url}'>Apply Now</a>\n"
-    )
-    
-    if proposal:
-        # Truncate proposal for preview
-        preview = proposal[:200] + "..."
-        message += f"\n<b>📝 Draft Preview:</b>\n<i>{preview}</i>"
+    # 1. Dynamic Emoji based on your AI Score
+    score = getattr(job, "relevance_score", 0)
+    if score >= 90:
+        badge = "🔥 <b>UNICORN MATCH</b> 🔥"
+    elif score >= 80:
+        badge = "🚀 <b>HIGH MATCH</b>"
+    else:
+        badge = "✅ <b>GOOD MATCH</b>"
 
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    # 2. Build the HTML Message
+    # We use getattr() safely in case a job board didn't provide a company name
+    message = f"""
+{badge}
+
+💼 <b>Role:</b> {job.title}
+🏢 <b>Company:</b> {getattr(job, 'company', 'Unknown')}
+📍 <b>Source:</b> <i>{job.platform}</i>
+
+🎯 <b>Score:</b> {score}/100
+
+🧠 <b>AI Reasoning:</b>
+{getattr(job, 'reasoning', 'No reasoning provided.')}
+
+🔗 <a href="{job.url}">View & Apply Here</a>
+    """
+
+    # 3. Send to Telegram API
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": message,
         "parse_mode": "HTML",
-        "disable_web_page_preview": True
+        "disable_web_page_preview": True  # <--- PRO TIP: Keeps your chat clean by hiding the massive website preview box
     }
-    
+
     try:
-        requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            print(f"📲 Telegram alert sent for: {job.title}")
+            return True
+        else:
+            print(f"❌ Telegram API Error: {response.text}")
+            return False
     except Exception as e:
-        print(f"❌ Failed to send Telegram alert: {e}")
+        print(f"❌ Telegram Crash: {e}")
+        return False

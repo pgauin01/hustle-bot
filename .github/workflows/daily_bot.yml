@@ -2,8 +2,11 @@ name: Daily HustleBot
 
 on:
   schedule:
-    # Runs at 09:00 UTC every day
-    - cron: "0 4 * * *" # 09:00 UTC is 09:30 IST
+    - cron: "0 0,8,16 * * *" # 00:00, 08:00, 16:00
+    - cron: "36 1,9,17 * * *" # 01:36, 09:36, 17:36
+    - cron: "12 3,11,19 * * *" # 03:12, 11:12, 19:12
+    - cron: "48 4,12,20 * * *" # 04:48, 12:48, 20:48
+    - cron: "24 6,14,22 * * *" # 06:24, 14:24, 22:24
   workflow_dispatch: # Allows you to click "Run Now" manually for testing
 
 jobs:

@@ -65,7 +65,7 @@ def generate_proposals(jobs: List[Job]) -> Dict[str, str]:
 
         try:
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.5-pro",
                 contents=prompt
             )
             proposals[job.id] = response.text

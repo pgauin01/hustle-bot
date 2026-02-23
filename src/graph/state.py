@@ -19,3 +19,4 @@ class JobState(TypedDict):
     filtered_jobs: List[Job]   # Jobs that passed the AI check
     proposals: List[str]       # Drafted cover letters for top jobs
     selected_platforms: List[str]
+    seen_job_ids: list

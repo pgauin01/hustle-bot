@@ -115,6 +115,7 @@ def score_jobs(state: JobState):
     normalized = state.get("normalized_jobs", [])
     resume_path = "profile.md"
     resume_text = "Generic Profile"
+    
     if os.path.exists(resume_path):
         with open(resume_path, "r", encoding="utf-8") as f:
             resume_text = f.read()
@@ -122,13 +123,32 @@ def score_jobs(state: JobState):
     from ..utils.filtering import strict_keyword_filter 
     must_haves = state.get("must_have_keywords", [])
     
+    # 1. PULL IN OUR SEEN IDs
+    seen_ids = state.get("seen_job_ids", []) 
+
     if not normalized: return {"filtered_jobs": []}
 
-    technically_qualified = strict_keyword_filter(normalized, must_haves)
+    # 2. DEDUPLICATE: Filter out jobs we have already saved before doing heavy processing
+    unique_jobs = [j for j in normalized if str(j.id) not in seen_ids]
+    
+    if not unique_jobs: 
+        print("All found jobs were duplicates. Skipping scoring.")
+        return {"filtered_jobs": []}
+
+    # 3. FILTER & SCORE
+    technically_qualified = strict_keyword_filter(unique_jobs, must_haves)
     if not technically_qualified: return {"filtered_jobs": []}
 
     scored = score_jobs_with_resume(technically_qualified, resume_text)
-    return {"filtered_jobs": scored}
+    
+    # 4. SORT BY SCORE & KEEP TOP 3
+    # Sort from highest relevance_score to lowest
+    scored.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
+    
+    # Slice the list to only keep the first 3
+    top_3_jobs = scored[:3]
+
+    return {"filtered_jobs": top_3_jobs}
 
 # --- 4. LOGGER (RUNS FIRST) ---
 def log_results_node(state: JobState):
@@ -153,17 +173,17 @@ def log_results_node(state: JobState):
     return {}
 
 # --- 5. NOTIFIER (RUNS SECOND - CAPPED) ---
-def notify_user(state: JobState):
+def notify_user(state):
     all_jobs = state.get("filtered_jobs", [])
     
     # FILTER: High Value only
-    high_value = [j for j in all_jobs if j.relevance_score >= 80]
+    high_value = [j for j in all_jobs if getattr(j, "relevance_score", 0) >= 80]
     
     # SORT: Best matches first
-    high_value.sort(key=lambda x: x.relevance_score, reverse=True)
+    high_value.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
     
-    # CAP: Top 5 Only
-    top_picks = high_value[:5]
+    # CAP: Top 3 Only (To match our Executive Summary strategy)
+    top_picks = high_value[:3]
     
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -172,15 +192,16 @@ def notify_user(state: JobState):
         print(f"🚀 Sending Telegram alerts for Top {len(top_picks)} jobs...")
         for i, job in enumerate(top_picks):
             try:
-                send_telegram_alert(job.title, job.url, job.relevance_score, job.reasoning, "[View in Dashboard]")
-                # THROTTLE: Sleep 1s to prevent timeout/ban
+                # 🛑 THE FIX: Pass the whole 'job' object instead of 5 separate arguments
+                send_telegram_alert(job)
+                
+                # THROTTLE: Sleep 1s to prevent timeout/ban from Telegram
                 if i < len(top_picks) - 1: 
                     time.sleep(1) 
             except Exception as e:
-                print(f"⚠️ Telegram Error for {job.title}: {e}")
+                print(f"⚠️ Telegram Error for {getattr(job, 'title', 'Unknown')}: {e}")
     
     return {}
-
 # --- 6. Graph Construction ---
 def create_graph():
     workflow = StateGraph(JobState)

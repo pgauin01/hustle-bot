@@ -73,7 +73,7 @@ def _score_batch_with_retry(chain, resume_text, batch, max_attempts, desc_limit)
     for attempt in range(1, max_attempts + 1):
         try:
             response = chain.invoke(
-                {"resume": (resume_text or "")[:2200], "jobs_data": jobs_input}
+                {"resume": (resume_text or ""), "jobs_data": jobs_input}
             )
             parsed_results = _extract_json_list(getattr(response, "content", ""))
             if not parsed_results:

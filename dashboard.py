@@ -274,44 +274,61 @@ with tab_manual:
         
         if submitted:
             if not m_title or not m_desc:
-                st.error("Please provide at least a Job Title and Description.")
+                st.error("⚠️ Please provide at least a Job Title and Description.")
             else:
-                with st.spinner("🤖 Analyzing & Saving..."):
-                    manual_id = f"manual_{int(time.time())}"
-                    new_job = Job(id=manual_id, platform="Manual Entry", title=m_title, company=m_company, description=m_desc, url=m_url, budget_min=0, budget_max=0, is_remote=True)
-                    
-                    profile_text = load_profile() or "Generic Developer Profile"
-                    scored_jobs = score_jobs_with_resume([new_job], profile_text)
-                    final_job = scored_jobs[0]
-                    
-                    save_manual_job(final_job)
-                    
-                    # Add to session immediately
-                    if "results" not in st.session_state: st.session_state["results"] = {"filtered_jobs": []}
-                    st.session_state["results"]["filtered_jobs"].insert(0, final_job)
-                    
-                    st.success(f"✅ Saved! Score: {final_job.relevance_score}/100")
+                # 1. 🛡️ UI SHIELD: Check if we already analyzed this to save Gemini tokens!
+                is_duplicate = False
+                existing_jobs = st.session_state.get("results", {}).get("filtered_jobs", [])
+                for j in existing_jobs:
+                    if j.platform == "Manual Entry" and j.title.lower() == m_title.lower() and getattr(j, "company", "").lower() == m_company.lower():
+                        is_duplicate = True
+                        break
+                
+                if is_duplicate:
+                    st.warning(f"⚠️ You have already saved '{m_title}' at '{m_company}'!")
+                else:
+                    with st.spinner("🤖 Analyzing & Saving..."):
+                        # 2. 🛡️ SMART ID: Create a deterministic ID instead of a random timestamp
+                        import hashlib
+                        unique_str = f"{m_title}_{m_company}_{m_url}".lower().replace(" ", "")
+                        manual_id = f"manual_{hashlib.md5(unique_str.encode()).hexdigest()[:8]}"
+                        
+                        new_job = Job(id=manual_id, platform="Manual Entry", title=m_title, company=m_company, description=m_desc, url=m_url, budget_min=0, budget_max=0, is_remote=True)
+                        
+                        profile_text = load_profile() or "Generic Developer Profile"
+                        scored_jobs = score_jobs_with_resume([new_job], profile_text)
+                        final_job = scored_jobs[0]
+                        
+                        save_manual_job(final_job)
+                        
+                        # Add to session immediately
+                        if "results" not in st.session_state: st.session_state["results"] = {"filtered_jobs": []}
+                        st.session_state["results"]["filtered_jobs"].insert(0, final_job)
+                        
+                        st.success(f"✅ Saved! Score: {final_job.relevance_score}/100")
 
 # --- TAB 3: MATCHES ---
 with tab_jobs:
     st.header("📊 Job Matches")
 
-    # --- 1. FILTER UI ---
-    f_col1, f_col2 = st.columns(2)
-    with f_col1:
-        min_score = st.slider("🎯 Minimum Relevance Score", min_value=0, max_value=100, value=75, step=5)
-    with f_col2:
-        date_filter = st.selectbox(
-            "📅 Date Posted", 
-            ["All Time", "Today", "Last 3 Days", "Last 7 Days", "Last 14 Days"]
-        )
-
-    st.markdown("---")
-
     if "results" in st.session_state:
         results = st.session_state["results"]
-        # We rename this to 'all_jobs' to distinguish from the filtered view
         all_jobs = results.get("filtered_jobs", []) 
+        
+        unique_platforms = sorted(list(set([getattr(j, "platform", "Unknown") for j in all_jobs if getattr(j, "platform", "")])))
+        unique_platforms.insert(0, "All Platforms")
+
+        # --- 1. FILTER UI ---
+        # 1. FIX: Changed back to 3 columns since we removed the Sort dropdown
+        f_col1, f_col2, f_col3 = st.columns(3)
+        with f_col1:
+            min_score = st.slider("🎯 Min Score", min_value=0, max_value=100, value=75, step=5)
+        with f_col2:
+            date_filter = st.selectbox("📅 Date Posted", ["All Time", "Today", "Last 3 Days", "Last 7 Days", "Last 14 Days"])
+        with f_col3:
+            platform_filter = st.selectbox("🌐 Platform", unique_platforms)
+
+        st.markdown("---")
         
         if not all_jobs:
             st.info("🎉 No pending matches. Run a search or check Tracker.")
@@ -321,6 +338,10 @@ with tab_jobs:
             for job in all_jobs:
                 # Filter by Score
                 if job.relevance_score < min_score:
+                    continue
+                    
+                # Filter by Platform
+                if platform_filter != "All Platforms" and getattr(job, "platform", "Unknown") != platform_filter:
                     continue
                     
                 # Filter by Date
@@ -341,7 +362,11 @@ with tab_jobs:
                             
                 display_jobs.append(job)
 
-            # --- 3. RENDER JOBS ---
+            # --- 3. APPLY SORTING ---
+            # 2. FIX: Automatically sort by Score (High to Low) every time
+            display_jobs.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
+
+            # --- 4. RENDER JOBS ---
             if not display_jobs:
                 st.warning("No jobs match your current filters. Try lowering the score or expanding the date range.")
             else:
@@ -398,7 +423,6 @@ with tab_jobs:
                                 else:
                                     delete_new_match(job.id)
                                     
-                                # CRITICAL FIX: Keep the hidden jobs in the session state!
                                 st.session_state["results"]["filtered_jobs"] = [j for j in all_jobs if j.id != job.id]
                                 st.rerun()
 
@@ -408,7 +432,6 @@ with tab_jobs:
                                 else:
                                     delete_new_match(job.id)
                                     
-                                # CRITICAL FIX: Keep the hidden jobs in the session state!
                                 st.session_state["results"]["filtered_jobs"] = [j for j in all_jobs if j.id != job.id]
                                 st.rerun()
 

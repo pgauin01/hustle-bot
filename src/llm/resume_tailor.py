@@ -19,10 +19,10 @@ def tailor_resume(job : Job, profile_content:str) -> str:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.5-pro")
         
-        # 2. STRICT PROMPT
+        # 2. SURGICAL PROMPT
         prompt = f"""
-        You are an expert Resume Writer. 
-        Your task is to tailor the following resume for the specific job description provided.
+        You are an expert Executive Technical Recruiter. 
+        Your task is to subtly tailor the candidate's highly-optimized resume for the specific job description below.
         
         JOB TITLE: {job.title} at {job.company}
         JOB DESCRIPTION: 
@@ -31,11 +31,15 @@ def tailor_resume(job : Job, profile_content:str) -> str:
         CANDIDATE PROFILE:
         {profile_content}
         
-        RULES:
-        1. Return ONLY the markdown content. 
-        2. DO NOT include any introductory text like "Here is the resume" or "I have optimized...".
-        3. Start directly with the header (e.g., "# Name").
-        4. Optimize keywords for ATS based on the job description.
+        CRITICAL RULES (DO NOT IGNORE):
+        1. DO NOT REWRITE THE WHOLE RESUME. 
+        2. DO NOT DELETE METRICS: You must perfectly preserve all hard numbers, API request counts, user counts, and percentages from the original profile.
+        3. DO NOT DELETE PROJECTS: Keep "HustleBot", "Shadow AI", and all specific frameworks mentioned.
+        4. SURGICAL TWEAKS ONLY: 
+           - Rewrite the "PROFESSIONAL SUMMARY" slightly so it directly mentions the Company Name and their core product/mission.
+           - Reorder the "SKILLS" list so the exact keywords from the Job Description appear first.
+           - Reorder the bullet points under Work Experience so the most relevant achievements are at the top.
+        5. Return ONLY the raw Markdown content. DO NOT include conversational text. Start immediately with the "# Praful Gaur" header.
         """
         
         response = model.generate_content(prompt)

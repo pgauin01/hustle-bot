@@ -1,8 +1,8 @@
 # Praful Gaur | Senior Full Stack Engineer – AI-Integrated Systems
 
-praful.gaur.2@gmail.com^ | https://www.linkedin.com/in/praful-gaur-57521899/^ | https://github.com/pgauin^
+praful.gaur.2@gmail.com | https://www.linkedin.com/in/praful-gaur-57521899/ | https://github.com/pgauin
 
-+918219590945^ | NCR, India^
++918219590945^ | NCR, India
 
 ## PROFESSIONAL SUMMARY
 

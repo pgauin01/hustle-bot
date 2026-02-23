@@ -14,17 +14,6 @@ TARGET_ROLES = [
 
 PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
 
-def get_already_saved_ids():
-    """Reads Google Sheets to find jobs we already saved previously."""
-    try:
-        from src.utils.persistence import get_sheet_connection
-        sh = get_sheet_connection()
-        if not sh: return []
-        ws = sh.worksheet("New_Matches")
-        return ws.col_values(1)[1:] # Column 1 has IDs, skip header
-    except:
-        return []
-
 def get_role_for_current_time():
     """Calculates exactly which role to run based on the current UTC time."""
     now = datetime.utcnow()
@@ -35,9 +24,10 @@ def get_role_for_current_time():
     return TARGET_ROLES[index]
 
 def job_hunt_task(forced_role=None):
+    # Import persistence tools here to ensure the environment is loaded first
     from src.utils.persistence import get_already_saved_ids, log_job_hunt, should_skip_run
     
-    # Use the forced role if provided, otherwise calculate the time-based role
+    # 1. Determine the role to search
     role = forced_role if forced_role else get_role_for_current_time()
     
     if forced_role:
@@ -46,16 +36,17 @@ def job_hunt_task(forced_role=None):
         print(f"\n⏰ Waking up for scheduled interval! Assigned Role: {role}")
         
         # --- THE FIX: Check the Cooldown Brain ---
-        # (We only check this if it's an automated run, not a manual test)
+        # If it's an automated run, check if we already searched this recently
         if should_skip_run(role, hours_cooldown=12):
             print(f"⏩ SKIPPING: '{role}' was already searched in the last 12 hours.")
             print("💰 Saved unnecessary API calls. Going back to sleep.")
-            return
+            return  # Exits the script immediately!
     
-    # 2. Get historical IDs to prevent duplicates
+    # 2. Get historical IDs to prevent scoring duplicates
     global_seen_ids = get_already_saved_ids()
     print(f"📚 Loaded {len(global_seen_ids)} existing jobs to prevent duplicates.")
 
+    # 3. Initialize the LangGraph Workflow
     app = create_graph()
     
     initial_state = {
@@ -68,27 +59,32 @@ def job_hunt_task(forced_role=None):
         "seen_job_ids": global_seen_ids 
     }
     
+    # 4. Run the Pipeline
     try:
         results = app.invoke(initial_state)
         found_jobs = results.get("filtered_jobs", [])
         print(f"✅ Finished. Saved {len(found_jobs)} Top Matches for {role}.")
         
         # --- UPDATE THE BRAIN ---
-        # Log this successful automated run so it doesn't run again soon
+        # Log this successful run so it doesn't trigger again for 12 hours
         log_job_hunt(role)
         
     except Exception as e:
         print(f"❌ Error during '{role}': {e}")
 
-# 3. Add the command-line listener
+
+# --- CLI LISTENER FOR TESTING ---
 if __name__ == "__main__":
-    import sys
     
     # If you type: python automate.py --role "RAG Engineer"
     if len(sys.argv) == 3 and sys.argv[1] == "--role":
         target = sys.argv[2]
         job_hunt_task(forced_role=target)
         
-    # If you just type: python automate.py
+    # If the GitHub Action types: python automate.py --once
+    elif len(sys.argv) == 2 and sys.argv[1] == "--once":
+        job_hunt_task()
+        
+    # Standard fallback
     else:
         job_hunt_task()

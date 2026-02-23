@@ -77,7 +77,6 @@ def log_jobs_to_sheet(jobs, sheet_url=None):
         print(f"❌ Google Sheets Error: {e}")
 
 # --- NEW FUNCTIONS ---
-
 def load_new_matches():
     """Reads all jobs from 'New_Matches' tab and returns Job objects."""
     try:
@@ -92,20 +91,29 @@ def load_new_matches():
         jobs = []
         
         for d in data:
-            # Helper to safely get keys (handles case sensitivity issues)
+            # Helper to safely get keys
             def g(k): return str(d.get(k) or d.get(k.lower()) or "")
 
+            raw_id = g("ID")
+            raw_title = g("Title")
+
+            # 🛡️ THE SHIELD: Ignore blank rows OR rows that start with "Column" 
+            if not raw_id or raw_id.lower().startswith("column"):
+                continue
+
             j = Job(
-                id=g("ID"),
+                id=raw_id,
                 platform=g("Platform") or "Unknown",
-                title=g("Title"),
+                title=raw_title,
                 company=g("Company"),
-                description="Loaded from Sheet (Desc unavailable)", # We don't save full desc to sheet to save space
+                description="Loaded from Sheet (Desc unavailable)", 
                 url=g("URL"),
                 budget_min=0, budget_max=0
             )
+            
             try: j.relevance_score = int(float(g("Score")))
             except: j.relevance_score = 0
+            
             j.reasoning = g("Reasoning")
             j.posted_at = g("Date Posted")
             

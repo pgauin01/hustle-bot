@@ -457,24 +457,26 @@ with tab_profile:
 with tab_analytics:
     st.subheader("📈 Insights")
     
+    # 1. Load ONLY the automated bot matches (Ignore manual jobs entirely)
     fresh_bot_matches = load_new_matches()
-    fresh_manual_jobs = load_manual_jobs()
     
-    # --- GHOST ROW FIX ---
-    # Combine the lists, but STRICTLY filter out any rows that have a blank Title or blank ID
+    # 2. GHOST ROW & MANUAL FILTER
+    # Strictly filter out blank rows and double-check that no "Manual Entry" sneaks in
     all_fresh_jobs = [
-        j for j in (fresh_bot_matches + fresh_manual_jobs) 
-        if j.title and str(j.title).strip() != "" and str(j.id).strip() != ""
+        j for j in fresh_bot_matches 
+        if getattr(j, "title", None) and str(j.title).strip() != "" 
+        and str(j.id).strip() != "" 
+        and getattr(j, "platform", "") != "Manual Entry"
     ]
     
     if not all_fresh_jobs: 
-        st.info("📭 No job matches available yet. Run a search to populate your analytics!")
+        st.info("📭 No automated job matches available yet. Run a search to populate your analytics!")
     else:
         # Create the DataFrame
         data = [{"Platform": j.platform, "Score": j.relevance_score, "Job": j.title} for j in all_fresh_jobs]
         df = pd.DataFrame(data)
         
-        st.markdown("**📊 Total Jobs by Platform**")
+        st.markdown("**📊 Total Automated Jobs by Platform**")
         
         # Group by platform to get exact counts
         platform_counts = df["Platform"].value_counts().reset_index()

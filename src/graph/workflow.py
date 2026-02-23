@@ -145,10 +145,10 @@ def score_jobs(state: JobState):
     # Sort from highest relevance_score to lowest
     scored.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
     
-    # Slice the list to only keep the first 3
-    top_3_jobs = scored[:3]
+    # Slice the list to only keep the first 5
+    top_5_jobs = scored[:5]
 
-    return {"filtered_jobs": top_3_jobs}
+    return {"filtered_jobs": top_5_jobs}
 
 # --- 4. LOGGER (RUNS FIRST) ---
 def log_results_node(state: JobState):
@@ -182,8 +182,8 @@ def notify_user(state):
     # SORT: Best matches first
     high_value.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
     
-    # CAP: Top 3 Only (To match our Executive Summary strategy)
-    top_picks = high_value[:3]
+    # CAP: Top 5 Only (To match our Executive Summary strategy)
+    top_picks = high_value[:5]
     
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")

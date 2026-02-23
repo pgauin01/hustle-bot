@@ -35,6 +35,7 @@ def get_role_for_current_time():
     return TARGET_ROLES[index]
 
 def job_hunt_task(forced_role=None):
+    from src.utils.persistence import get_already_saved_ids, log_job_hunt, should_skip_run
     
     # Use the forced role if provided, otherwise calculate the time-based role
     role = forced_role if forced_role else get_role_for_current_time()
@@ -43,6 +44,13 @@ def job_hunt_task(forced_role=None):
         print(f"\n🧪 LOCAL TEST MODE: Forcing hunt for {role}")
     else:
         print(f"\n⏰ Waking up for scheduled interval! Assigned Role: {role}")
+        
+        # --- THE FIX: Check the Cooldown Brain ---
+        # (We only check this if it's an automated run, not a manual test)
+        if should_skip_run(role, hours_cooldown=12):
+            print(f"⏩ SKIPPING: '{role}' was already searched in the last 12 hours.")
+            print("💰 Saved unnecessary API calls. Going back to sleep.")
+            return
     
     # 2. Get historical IDs to prevent duplicates
     global_seen_ids = get_already_saved_ids()
@@ -64,6 +72,11 @@ def job_hunt_task(forced_role=None):
         results = app.invoke(initial_state)
         found_jobs = results.get("filtered_jobs", [])
         print(f"✅ Finished. Saved {len(found_jobs)} Top Matches for {role}.")
+        
+        # --- UPDATE THE BRAIN ---
+        # Log this successful automated run so it doesn't run again soon
+        log_job_hunt(role)
+        
     except Exception as e:
         print(f"❌ Error during '{role}': {e}")
 

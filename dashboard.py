@@ -225,13 +225,18 @@ with tab_run:
                 
                 try:
                     from src.graph.workflow import create_graph
+                    from src.utils.persistence import log_job_hunt # <--- 1. Import the logger
+                        
                     app = create_graph()
                     app.invoke(initial_state)
-                    
+                        
+                    # 2. Tell the shared database that we just searched this role manually!
+                    log_job_hunt(query) 
+                        
                     st.success("✅ Job Hunt Complete! Check the 'Matches' tab.")
                     time.sleep(1)
                     st.rerun()
-                    
+                        
                 except Exception as e:
                     st.error(f"❌ Workflow Crashed: {e}")
         else:

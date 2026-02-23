@@ -3,9 +3,10 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import json
 import pandas as pd
-from datetime import datetime
 from ..models.job import Job
 from dotenv import load_dotenv  
+from datetime import datetime, timedelta
+
 
 
 load_dotenv()
@@ -229,4 +230,58 @@ def delete_cover_letter(job_id):
             
     except Exception as e:
         print(f"❌ Error deleting cover letter: {e}")
-        return False    
+        return False   
+
+
+
+def log_job_hunt(role):
+    """Logs the timestamp of a job hunt to prevent redundant automated runs."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return
+        
+        # 1. Try to open the history sheet, or create it if it doesn't exist
+        try:
+            ws = sh.worksheet("Run_History")
+        except:
+            ws = sh.add_worksheet(title="Run_History", rows="100", cols="2")
+            ws.append_row(["Role", "Last_Run_Timestamp"])
+            
+        now_str = datetime.utcnow().isoformat()
+        
+        # 2. Update the time if the role exists, or append a new row
+        try:
+            cell = ws.find(role, in_column=1)
+            ws.update_cell(cell.row, 2, now_str)
+        except:
+            ws.append_row([role, now_str])
+            
+        print(f"📝 Logged '{role}' search to history.")
+    except Exception as e:
+        print(f"⚠️ Failed to log run history: {e}")
+
+def should_skip_run(role, hours_cooldown=12):
+    """Checks if a role was searched manually or automatically in the last X hours."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return False
+        
+        try:
+            ws = sh.worksheet("Run_History")
+        except:
+            return False # Sheet doesn't exist yet, so don't skip
+            
+        try:
+            cell = ws.find(role, in_column=1)
+            last_run_str = ws.cell(cell.row, 2).value
+            last_run = datetime.fromisoformat(last_run_str)
+            
+            # If the time since the last run is LESS than our cooldown, SKIP IT
+            if datetime.utcnow() - last_run < timedelta(hours=hours_cooldown):
+                return True
+        except:
+            pass # Role not found in sheet, safe to run
+            
+        return False
+    except:
+        return False     

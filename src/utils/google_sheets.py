@@ -29,7 +29,7 @@ def get_sheet_connection(sheet_url=None):
         return client.open_by_url(sheet_url)
     except: return None
 
-def log_jobs_to_sheet(jobs, sheet_url):
+def log_jobs_to_sheet(jobs, sheet_url=None):
     """Logs a list of Job objects to the 'New_Matches' tab."""
     if not jobs: return
 
@@ -62,14 +62,15 @@ def log_jobs_to_sheet(jobs, sheet_url):
                     getattr(job, "company", "Unknown"),
                     job.platform,
                     job.url,
-                    str(job.posted_at) if job.posted_at else datetime.now().strftime("%Y-%m-%d"),
+                    str(job.posted_at) if getattr(job, "posted_at", None) else datetime.now().strftime("%Y-%m-%d"),
                     str(job.relevance_score),
                     job.reasoning
                 ]
                 new_rows.append(row)
         
         if new_rows:
-            worksheet.append_rows(new_rows)
+            # FIX: Explicitly force 'INSERT_ROWS' so it physically cannot overwrite old data
+            worksheet.append_rows(new_rows, value_input_option='USER_ENTERED', insert_data_option='INSERT_ROWS')
             print(f"✅ Logged {len(new_rows)} jobs to 'New_Matches'.")
 
     except Exception as e:

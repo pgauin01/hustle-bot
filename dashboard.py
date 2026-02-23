@@ -211,34 +211,52 @@ with tab_run:
     # 4. RUN JOB HUNT BUTTON
     if st.button("🔍 Run Job Hunt Now"):
         if query:
-            with st.spinner(f"Hunting for '{query}' across platforms..."):
-                
-                # We pass an empty list [] for must_have_keywords since you deleted the input
-                initial_state = {
-                    "search_query": query,
-                    "must_have_keywords": [], # <-- Empty list prevents backend errors
-                    "selected_platforms":selected_platforms,
-                    "raw_results": [],
-                    "normalized_jobs": [],
-                    "filtered_jobs": []
-                }
-                
-                try:
-                    from src.graph.workflow import create_graph
-                    from src.utils.persistence import log_job_hunt # <--- 1. Import the logger
+            if not selected_platforms:
+                st.error("⚠️ Please select at least one platform to search.")
+            else:
+                with st.spinner(f"Hunting for '{query}' across platforms..."):
+                    try:
+                        from src.graph.workflow import create_graph
+                        from src.utils.persistence import log_job_hunt, get_already_saved_ids 
                         
-                    app = create_graph()
-                    app.invoke(initial_state)
+                        seen_ids = get_already_saved_ids()
                         
-                    # 2. Tell the shared database that we just searched this role manually!
-                    log_job_hunt(query) 
+                        initial_state = {
+                            "search_query": query,
+                            "must_have_keywords": [], 
+                            "selected_platforms": selected_platforms,
+                            "raw_results": [],
+                            "normalized_jobs": [],
+                            "filtered_jobs": [],
+                            "seen_job_ids": seen_ids 
+                        }
                         
-                    st.success("✅ Job Hunt Complete! Check the 'Matches' tab.")
-                    time.sleep(1)
-                    st.rerun()
+                        app = create_graph()
+                        # 1. Capture the results returned by the AI
+                        results = app.invoke(initial_state) 
+                            
+                        log_job_hunt(query) 
                         
-                except Exception as e:
-                    st.error(f"❌ Workflow Crashed: {e}")
+                        # 2. INSTANT UI UPDATE: Push new jobs directly into Streamlit's memory
+                        new_jobs = results.get("filtered_jobs", [])
+                        
+                        if "results" in st.session_state:
+                            old_jobs = st.session_state["results"].get("filtered_jobs", [])
+                            # Put new jobs at the top, followed by old jobs
+                            combined = new_jobs + old_jobs 
+                            
+                            # Deduplicate just in case
+                            unique_jobs = {j.id: j for j in combined}.values()
+                            st.session_state["results"]["filtered_jobs"] = list(unique_jobs)
+                        else:
+                            st.session_state["results"] = {"filtered_jobs": new_jobs}
+                            
+                        st.success("✅ Job Hunt Complete! Matches updated instantly.")
+                        time.sleep(1)
+                        st.rerun() # Will now instantly show the combined list!
+                            
+                    except Exception as e:
+                        st.error(f"❌ Workflow Crashed: {e}")
         else:
             st.warning("⚠️ Please enter a job role to search for.")
 
@@ -438,16 +456,32 @@ with tab_profile:
 # --- TAB 6: INSIGHTS ---
 with tab_analytics:
     st.subheader("📈 Insights")
-    if "results" in st.session_state:
-        results = st.session_state["results"]
-        jobs = results.get("filtered_jobs", [])
-        if jobs:
-            data = [{"Platform": j.platform, "Score": j.relevance_score} for j in jobs]
-            df = pd.DataFrame(data)
-            c1, c2 = st.columns(2)
-            with c1: st.bar_chart(df["Score"])
-            with c2: st.dataframe(df["Platform"].value_counts())
-    else: st.info("Run a search first.")
+    
+    fresh_bot_matches = load_new_matches()
+    fresh_manual_jobs = load_manual_jobs()
+    
+    # --- GHOST ROW FIX ---
+    # Combine the lists, but STRICTLY filter out any rows that have a blank Title or blank ID
+    all_fresh_jobs = [
+        j for j in (fresh_bot_matches + fresh_manual_jobs) 
+        if j.title and str(j.title).strip() != "" and str(j.id).strip() != ""
+    ]
+    
+    if not all_fresh_jobs: 
+        st.info("📭 No job matches available yet. Run a search to populate your analytics!")
+    else:
+        # Create the DataFrame
+        data = [{"Platform": j.platform, "Score": j.relevance_score, "Job": j.title} for j in all_fresh_jobs]
+        df = pd.DataFrame(data)
+        
+        st.markdown("**📊 Total Jobs by Platform**")
+        
+        # Group by platform to get exact counts
+        platform_counts = df["Platform"].value_counts().reset_index()
+        platform_counts.columns = ["Platform", "Count"]
+        
+        # A beautiful, full-width colored bar chart
+        st.bar_chart(platform_counts, x="Platform", y="Count", color="Platform")
 
 
 # --- TAB 6: DOCS (RESUMES & COVER LETTERS) ---

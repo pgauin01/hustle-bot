@@ -16,12 +16,13 @@ def fetch_from_remoteok(tag: str = "python") -> List[Dict[str, Any]]:
     """
     url = "https://remoteok.com/api"
     
-    # RemoteOK works best with single-word tags (e.g., "python", "engineer", "exec").
-    clean_tag = tag.split(" ")[0].lower() if tag else "python"
+    # 1. FIX: Stop splitting the words! Keep the whole search query.
+    clean_query = tag.lower() if tag else "python"
     
-    params = {"tag": clean_tag}
+    # 2. FIX: Use 'keys' instead of 'tag' to search by full keywords
+    params = {"keys": clean_query}
     
-    print(f"📡 Connecting to RemoteOK API (tag='{clean_tag}')...")
+    print(f"📡 Connecting to RemoteOK API (keys='{clean_query}')...")
     
     try:
         response = requests.get(url, headers=HEADERS, params=params, timeout=10)
@@ -34,12 +35,12 @@ def fetch_from_remoteok(tag: str = "python") -> List[Dict[str, Any]]:
             if not isinstance(item, dict) or "legal" in item:
                 continue
                 
-            # Create a clean job object (Explicitly handling missing keys)
+            # Create a clean job object
             job = {
                 "id": str(item.get("id", item.get("url", ""))),
                 "url": item.get("url", ""),
                 "position": item.get("position", "Unknown Role"),
-                "company": item.get("company", "Unknown"),  # <--- ENSURE THIS IS SET
+                "company": item.get("company", "Unknown"), 
                 "description": item.get("description", ""),
                 "date": item.get("date", ""),
                 "tags": item.get("tags", []),
@@ -49,6 +50,9 @@ def fetch_from_remoteok(tag: str = "python") -> List[Dict[str, Any]]:
             }
             jobs.append(job)
             
+        # 3. FIX: Add a print statement so we can visually confirm it found jobs!
+        print(f"✅ Retrieved {len(jobs)} raw jobs from RemoteOK.")
+        
         return jobs
     
     except Exception as e:

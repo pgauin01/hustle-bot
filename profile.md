@@ -2,7 +2,7 @@
 
 praful.gaur.2@gmail.com | https://www.linkedin.com/in/praful-gaur-57521899/ | https://github.com/pgauin
 
-+918219590945^ | NCR, India
++918219590945 | NCR, India
 
 ## PROFESSIONAL SUMMARY
 
@@ -113,18 +113,8 @@ trading.
 **CityApp – Grocery Delivery Platform**
 Designed full-stack order lifecycle management system with real-time dashboard administration and scalable REST APIs.
 
-**Shadow – AI-Powered Second Brain (React, FastAPI, Vector Search)**
-Live: https://shadowtodo.duckdns.org/ GitHub: https://github.com/pgauin01/shadow
-Architected and deployed a full-stack AI assistant with semantic memory search using vector embeddings and Google
-Gemini integration. Implemented client-side AES-GCM encryption and modular AI workflow orchestration.
-
 **Tech Bridge – Network Configuration Management System (React)**
 Developed rule-based approval automation system for router configuration validation workflows
-
-**Nexus Quest – On-Chain RPG / NFT Armory (Solidity + React)**
-Live: https://nft-armory.vercel.app/ GitHub: https://github.com/pgauin01/Nexus_quest
-Designed and deployed ERC-721 smart contracts with IPFS metadata storage and built wallet-integrated React frontend
-for decentralized asset management.
 
 **HustleBot – Autonomous AI Job Search Orchestrator (LangGraph, Gemini, Streamlit)**
 Live:https://hustle-bot-xo.streamlit.app/ Github:https://github.com/pgauin01/hustle-bot
@@ -137,6 +127,16 @@ Live:https://hustle-bot-xo.streamlit.app/ Github:https://github.com/pgauin01/hus
   processing to top 3 high-confidence matches per run.
 - Developed a Streamlit dashboard and Telegram notification system for real-time executive summaries and CRM
   tracking.
+
+**Shadow – AI-Powered Second Brain (React, FastAPI, Vector Search)**
+Live: https://shadowtodo.duckdns.org/ GitHub: https://github.com/pgauin01/shadow
+Architected and deployed a full-stack AI assistant with semantic memory search using vector embeddings and Google
+Gemini integration. Implemented client-side AES-GCM encryption and modular AI workflow orchestration.
+
+**Nexus Quest – On-Chain RPG / NFT Armory (Solidity + React)**
+Live: https://nft-armory.vercel.app/ GitHub: https://github.com/pgauin01/Nexus_quest
+Designed and deployed ERC-721 smart contracts with IPFS metadata storage and built wallet-integrated React frontend
+for decentralized asset management.
 
 ## EDUCATION
 

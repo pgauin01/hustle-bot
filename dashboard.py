@@ -36,7 +36,7 @@ try:
 except ImportError:
     genai = None
 
-st.set_page_config(page_title="HustleBot 2.9 (Fully Persistent)", page_icon="💼", layout="wide")
+st.set_page_config(page_title="HustleBot", page_icon="💼", layout="wide")
 
 # --- HELPER FUNCTIONS ---
 def suggest_roles(skills=""):

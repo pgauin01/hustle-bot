@@ -15,22 +15,39 @@ load_dotenv()
 def get_sheet_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = None
-    if os.getenv("GOOGLE_CREDENTIALS_JSON"):
-        try: creds_dict = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
-        except: return None
+    
+    # 1. Check for Cloud Secrets (GitHub Actions)
+    creds_env = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if creds_env:
+        try:
+            # strict=False helps parse slightly messy JSON strings from Cloud environments
+            creds_dict = json.loads(creds_env, strict=False)
+        except Exception as e:
+            print(f"❌ CRITICAL: Failed to parse GOOGLE_CREDENTIALS_JSON. Is it formatted correctly in GitHub Secrets? Error: {e}")
+            return None
+            
+    # 2. Check for Local File
     elif os.path.exists("credentials.json"):
-        try: creds_dict = json.load(open("credentials.json"))
-        except: return None
-    if not creds_dict: return None
+        try: 
+            creds_dict = json.load(open("credentials.json"))
+        except Exception as e:
+            print(f"❌ CRITICAL: Failed to read local credentials.json file. Error: {e}")
+            return None
+            
+    if not creds_dict: 
+        print("❌ CRITICAL: No Google Credentials found at all!")
+        return None
 
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
         sheet_url = os.getenv("GOOGLE_SHEET_URL")
-        if not sheet_url: return None
+        if not sheet_url: 
+            print("❌ CRITICAL: GOOGLE_SHEET_URL is missing!")
+            return None
         return client.open_by_url(sheet_url)
     except Exception as e:
-        print(f"❌ Connection Error: {e}")
+        print(f"❌ CRITICAL: Failed to connect to Google Sheets API: {e}")
         return None
 
 # --- 1. TRACKER ---

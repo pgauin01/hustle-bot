@@ -284,4 +284,19 @@ def should_skip_run(role, hours_cooldown=12):
             
         return False
     except:
-        return False     
+        return False    
+
+def get_already_saved_ids():
+    """Reads Google Sheets to find jobs we already saved previously."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: 
+            return []
+            
+        ws = sh.worksheet("New_Matches")
+        # Get all values in the first column (Job IDs), skipping the header row
+        saved_ids = ws.col_values(1)[1:] 
+        return saved_ids
+    except Exception as e:
+        print(f"⚠️ Note: Could not load previously saved IDs (Sheet might be empty or missing). Details: {e}")
+        return []     

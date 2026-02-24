@@ -380,7 +380,7 @@ def clear_graveyard():
 
     # --- NEW MATCHES & GLOBAL SAFETY VALVE ---
 def save_new_matches(jobs):
-    """Saves jobs matching your 8-column header: ID, Title, Company, Platform, URL, Date Posted, Score, Reasoning"""
+    """Saves jobs matching your 8-column header with forced string formatting for dates."""
     try:
         sh = get_sheet_connection()
         if not sh: return
@@ -391,25 +391,22 @@ def save_new_matches(jobs):
             ws = sh.add_worksheet(title="New_Matches", rows="100", cols="8")
             ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Score", "Reasoning"])
 
-        # 🛡️ 1. CHECK DAILY LIMIT (Count rows added today)
+        # Check limit (Optional: You can keep or adjust this)
         all_values = ws.get_all_values()
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        
-        # We check the 'Date Posted' column (Col 6) as a proxy or simply count total rows if you clear it daily
-        # To be safe, we count how many items have been appended in this session vs a limit
-        if len(all_values) > 15: # Simple cap check
-             print("🛑 Daily limit reached. Skipping save.")
-             return
+        if len(all_values) > 50: # Increased limit for visibility
+             print("🛑 Capacity check: Sheet has significant data.")
 
         for job in jobs:
-            # We align exactly to your 8 headers
+            # Force date as string using a single quote prefix for Google Sheets
+            date_val = f"'{job.posted_at}" if job.posted_at else "Recent"
+            
             row = [
                 str(job.id),
                 job.title,
                 getattr(job, "company", "Unknown"),
                 job.platform,
                 job.url,
-                job.posted_at or "Recent", # Date Posted (Col 6)
+                date_val,                 # Date Posted (Col 6) - Forced String
                 str(job.relevance_score),  # Score (Col 7)
                 job.reasoning              # Reasoning (Col 8)
             ]
@@ -418,3 +415,68 @@ def save_new_matches(jobs):
 
     except Exception as e:
         print(f"❌ Error in save_new_matches: {e}")
+
+# --- Updated in src/utils/persistence.py ---
+
+def save_new_matches(jobs):
+    """Saves jobs to the 8-column header. Uses current date if job.posted_at is missing."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return
+        
+        try:
+            ws = sh.worksheet("New_Matches")
+        except:
+            ws = sh.add_worksheet(title="New_Matches", rows="100", cols="8")
+            ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Score", "Reasoning"])
+
+        # 1. Get current date for fallback
+        today_str = datetime.now().strftime("%Y-%m-%d")
+
+        # 🛡️ 2. CHECK DAILY LIMIT (Safety Valve)
+        all_rows = ws.get_all_values()
+        # Count rows added today by checking the 'Date Posted' column (Col 6)
+        today_count = 0
+        if len(all_rows) > 1:
+            today_count = sum(1 for row in all_rows if len(row) >= 6 and today_str in row)
+
+        if today_count >= 15:
+            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today. Skipping.")
+            return
+
+        # 3. Save matches
+        slots_left = 15 - today_count
+        for job in jobs[:slots_left]:
+            # FIX: Use job.posted_at if it exists, otherwise use today's date
+            # Prefix with ' to force Google Sheets to treat it as a string
+            final_date = job.posted_at if job.posted_at else today_str
+            date_val = f"'{final_date}"
+            
+            row = [
+                str(job.id),
+                job.title,
+                getattr(job, "company", "Unknown"),
+                job.platform,
+                job.url,
+                date_val,                 # Date Posted (Col 6)
+                str(job.relevance_score),  # Score (Col 7)
+                job.reasoning              # Reasoning (Col 8)
+            ]
+            ws.append_row(row)
+            print(f"✅ Saved Elite Match: {job.title} (Dated: {final_date})")
+
+    except Exception as e:
+        print(f"❌ Persistence Save Error: {e}")
+
+def delete_new_match(job_id):
+    """Deletes a specific job from the New_Matches sheet."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return
+        ws = sh.worksheet("New_Matches")
+        cell = ws.find(str(job_id), in_column=1)
+        if cell: 
+            ws.delete_rows(cell.row)
+            print(f"🗑️ Deleted job {job_id} from New_Matches")
+    except Exception as e:
+        print(f"❌ Error deleting match: {e}")

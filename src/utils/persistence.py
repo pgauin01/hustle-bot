@@ -376,3 +376,46 @@ def clear_graveyard():
     except Exception as e:
         print(f"❌ Error clearing graveyard: {e}")
         return False
+    
+
+    # --- NEW MATCHES & GLOBAL SAFETY VALVE ---
+def save_new_matches(jobs):
+    """Saves jobs while enforcing a global daily cap of 15 across all runs."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return
+        
+        try:
+            ws = sh.worksheet("New_Matches")
+        except:
+            ws = sh.add_worksheet(title="New_Matches", rows="100", cols="9")
+            ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Date Added", "Score", "Reasoning"])
+
+        # 🛡️ 1. CHECK GLOBAL DAILY LIMIT
+        all_rows = ws.get_all_values()
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        
+        # Count rows added today (Checking Column 7: Date Added)
+        today_count = 0
+        if len(all_rows) > 1:
+            today_count = sum(1 for row in all_rows if len(row) >= 7 and row[6] == today_str)
+
+        if today_count >= 15:
+            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today. Skipping these matches.")
+            return
+
+        # 2. CALCULATE CAPACITY
+        slots_left = 15 - today_count
+        to_save = jobs[:slots_left]
+
+        for job in to_save:
+            row = [
+                str(job.id), job.title, getattr(job, "company", "Unknown"),
+                job.platform, job.url, job.posted_at or "Recent",
+                today_str, str(job.relevance_score), job.reasoning
+            ]
+            ws.append_row(row)
+            print(f"✅ Saved Elite Match: {job.title} ({job.relevance_score}/100)")
+
+    except Exception as e:
+        print(f"❌ Persistence Save Error: {e}")

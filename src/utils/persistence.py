@@ -6,6 +6,7 @@ import pandas as pd
 from ..models.job import Job
 from dotenv import load_dotenv  
 from datetime import datetime, timedelta
+from .date_utils import parse_any_date, to_us_date
 
 
 
@@ -379,7 +380,7 @@ def clear_graveyard():
     
 
 def save_new_matches(jobs):
-    """Saves jobs matching your 8-column header with forced 'YYYY-MM-DD format."""
+    """Saves jobs using text dates in M/D/YYYY to avoid Google serial conversion."""
     try:
         sh = get_sheet_connection()
         if not sh: return
@@ -390,35 +391,41 @@ def save_new_matches(jobs):
             ws = sh.add_worksheet(title="New_Matches", rows="100", cols="8")
             ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Score", "Reasoning"])
 
-        # 1. Get current date for fallback in strict format
+        # 1. Current day for fallback and daily cap checks
+        # today = datetime.now().date()
+        # 1. Get current date for comparison
         today_str = datetime.now().strftime("%Y-%m-%d")
+
+        # 🛡️ 2. CHECK GLOBAL DAILY LIMIT (Checking Column 6: Date Posted)
+        all_rows = ws.get_all_values()
+        today_count = 0
+        
+        if len(all_rows) > 1:
+            # We look at index 5 (Column 6) which is where 'Date Posted' is stored
+            # We use 'in' to handle cases where the date has a single quote prefix
+            today_count = sum(1 for row in all_rows if len(row) >= 6 and today_str in str(row[5]))
+
+        if today_count >= 15:
+            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today. Skipping.")
+            return
+
+        # 3. CALCULATE REMAINING CAPACITY
+        slots_left = 15 - today_count
+        to_save = jobs[:slots_left]
 
         # 🛡️ 2. CHECK SHEET FOR EXISTING IDs (Preventing duplicates)
         existing_ids = set(ws.col_values(1))
         existing_url = set(ws.col_values(5)) # Also track URLs to prevent duplicates if IDs are missing
 
-        # 🛡️ 3. DAILY SAFETY VALVE (Limit to 15 per day)
-        all_rows = ws.get_all_values()
-        # Count rows added today by looking at the Date Posted column (Col 6)
-        today_count = sum(1 for row in all_rows if len(row) >= 6 and today_str in str(row[5]))
-
-        if today_count >= 15:
-            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today.")
-            return
-
-        slots_left = 15 - today_count
-        saved_now = 0
-
-        for job in jobs:
+        for job in to_save:
             if saved_now >= slots_left: break
             
-            # Skip if ID already exists in sheet
+            # Skip if url already exists in sheet
             if str(job.url) in existing_url:
                 continue
 
-            # Standardize Date: Use job date if available, else today. Force string with '
-            final_date = job.posted_at if job.posted_at else today_str
-            date_val = f"'{final_date}" # The ' prevents Google Sheets from changing format
+            # Standardize to M/D/YYYY and write as RAW text.
+            date_val = to_us_date(job.posted_at, fallback_today=True)
             
             row = [
                 str(job.id),
@@ -430,10 +437,10 @@ def save_new_matches(jobs):
                 str(job.relevance_score),  # Column 7: Score
                 job.reasoning              # Column 8: Reasoning
             ]
-            ws.append_row(row)
+            ws.append_row(row, value_input_option="RAW")
             existing_ids.add(str(job.id))
             saved_now += 1
-            print(f"✅ Saved Elite Match: {job.title} (Format: {final_date})")
+            print(f"✅ Saved Elite Match: {job.title} (Date: {date_val})")
 
     except Exception as e:
         print(f"❌ Persistence Save Error: {e}")
@@ -453,7 +460,7 @@ def delete_new_match(job_id):
 
 
 def load_new_matches():
-    """Loads all jobs and robustly converts numeric dates (like 46077) to YYYY-MM-DD."""
+    """Loads all jobs and normalizes Date Posted to M/D/YYYY."""
     try:
         sh = get_sheet_connection()
         if not sh: return []
@@ -474,22 +481,9 @@ def load_new_matches():
                 url=g("URL")
             )
             
-            # --- ROBUST DATE CONVERSION ---
-            raw_date = g("Date Posted")
-            try:
-                # 1. Try to convert if it's a number (46077) or a string of a number ("46077")
-                date_num = float(raw_date)
-                # Google Sheets dates start from Dec 30, 1899
-                converted_date = datetime(1899, 12, 30) + timedelta(days=date_num)
-                j.posted_at = converted_date.strftime("%Y-%m-%d")
-            except (ValueError, TypeError):
-                # 2. If it's already a string (like "2026-02-24"), just clean it up
-                j.posted_at = str(raw_date).replace("'", "")
-            
-            # Use a fallback if still empty
-            if not j.posted_at or j.posted_at == "None":
+            j.posted_at = to_us_date(g("Date Posted"))
+            if not j.posted_at:
                 j.posted_at = "Recently Found"
-            # ------------------------------
 
             try: 
                 j.relevance_score = int(float(g("Score")))
@@ -503,3 +497,35 @@ def load_new_matches():
     except Exception as e:
         print(f"❌ Error loading matches: {e}")
         return []
+
+
+def normalize_new_matches_dates():
+    """Converts existing New_Matches date cells to M/D/YYYY text format."""
+    try:
+        sh = get_sheet_connection()
+        if not sh:
+            return 0
+
+        ws = sh.worksheet("New_Matches")
+        rows = ws.get_all_values()
+        if len(rows) <= 1:
+            return 0
+
+        updates = 0
+        for i, row in enumerate(rows[1:], start=2):
+            if len(row) < 6:
+                continue
+
+            current_raw = str(row[5]).replace("'", "").strip()
+            normalized = to_us_date(current_raw)
+            if not normalized:
+                continue
+
+            if current_raw != normalized:
+                ws.update_cell(i, 6, normalized)
+                updates += 1
+
+        return updates
+    except Exception as e:
+        print(f"❌ Error normalizing dates: {e}")
+        return 0

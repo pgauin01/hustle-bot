@@ -14,6 +14,7 @@ from src.llm.resume_tailor import tailor_resume
 from src.utils.file_manager import save_tailored_resume
 from src.models.job import Job
 from src.llm.scoring import score_jobs_with_resume
+from src.utils.date_utils import parse_any_date, to_us_date
 
 # PERSISTENCE IMPORTS
 from src.utils.persistence import (
@@ -30,7 +31,8 @@ from src.utils.persistence import (
     save_dismissed_job,
     clear_graveyard,
     load_new_matches,
-    delete_new_match
+    delete_new_match,
+    normalize_new_matches_dates
 )
 # NEW MATCHES IMPORTS
 from src.utils.google_sheets import log_jobs_to_sheet
@@ -169,6 +171,15 @@ with st.sidebar:
                 st.rerun()
             else:
                 st.error("Failed to clear graveyard.")
+
+    if st.button("🧹 Fix Date Posted Format"):
+        with st.spinner("Converting Date Posted to M/D/YYYY..."):
+            updated = normalize_new_matches_dates()
+            st.success(f"Updated {updated} row(s) in New_Matches.")
+            time.sleep(1)
+            st.session_state.pop("init_done", None)
+            st.session_state.pop("results", None)
+            st.rerun()
     
     # Keep the "Reset" or "Clear Cache" button if you want
     if st.button("🔄 Reload App"):
@@ -376,8 +387,8 @@ with tab_jobs:
                 if date_filter != "All Time":
                     posted_date_str = getattr(job, "posted_at", "")
                     if posted_date_str:
-                        try:
-                            job_date = datetime.strptime(posted_date_str, "%Y-%m-%d").date()
+                        job_date = parse_any_date(posted_date_str)
+                        if job_date:
                             today = datetime.now().date()
                             days_diff = (today - job_date).days
                             
@@ -385,8 +396,6 @@ with tab_jobs:
                             if date_filter == "Last 3 Days" and days_diff > 3: continue
                             if date_filter == "Last 7 Days" and days_diff > 7: continue
                             if date_filter == "Last 14 Days" and days_diff > 14: continue
-                        except ValueError:
-                            pass # Skip filtering if date format is weird
                             
                 display_jobs.append(job)
 
@@ -405,7 +414,9 @@ with tab_jobs:
                     color = "green" if score >= 80 else "orange" if score >= 50 else "red"
                     
                     # Standardize the date for display
-                    display_date = getattr(job, "posted_at", "Date Unknown")
+                    display_date = to_us_date(getattr(job, "posted_at", None))
+                    if not display_date:
+                        display_date = "Date Unknown"
 
                     with st.expander(f"**:{color}[{score}/100]** {job.title} @ {getattr(job, 'company', 'Unknown')}"):
                         c1, c2 = st.columns([3, 1])

@@ -18,6 +18,7 @@ from ..platforms.linkedin import fetch_linkedin_jobs
 from dotenv import load_dotenv  
 from ..utils.persistence import save_dismissed_job
 from datetime import datetime, timedelta
+from ..utils.date_utils import parse_any_date
 
 load_dotenv()
 
@@ -144,7 +145,7 @@ def score_jobs(state: JobState):
     scored = score_jobs_with_resume(technically_qualified, resume_text)
     
     # 4. 🛡️ THE AUTO-GRAVEYARD GATEKEEPER
-    now = datetime.now()
+    now = datetime.now().date()
     elite_matches = []
     
     for job in scored:
@@ -153,11 +154,9 @@ def score_jobs(state: JobState):
         # Check Date
         is_fresh = True
         if job.posted_at:
-            try:
-                job_date = datetime.strptime(job.posted_at, "%Y-%m-%d")
-                if (now - job_date).days > 2: # Older than 48 hours
-                    is_fresh = False
-            except: pass 
+            job_date = parse_any_date(job.posted_at)
+            if job_date and (now - job_date).days > 2: # Older than 48 hours
+                is_fresh = False
 
         # Only proceed if it's an Elite Match (85+) and Fresh
         if score >= 85 and is_fresh:

@@ -28,10 +28,12 @@ from src.utils.persistence import (
     update_status,
     get_already_saved_ids, 
     save_dismissed_job,
-    clear_graveyard
+    clear_graveyard,
+    load_new_matches,
+    delete_new_match
 )
 # NEW MATCHES IMPORTS
-from src.utils.google_sheets import log_jobs_to_sheet, load_new_matches, delete_new_match
+from src.utils.google_sheets import log_jobs_to_sheet
 from datetime import datetime
 
 try:
@@ -171,6 +173,8 @@ with st.sidebar:
     # Keep the "Reset" or "Clear Cache" button if you want
     if st.button("🔄 Reload App"):
         st.cache_data.clear()
+        st.session_state.pop("init_done", None)
+        st.session_state.pop("results", None)
         st.rerun()
 
     st.info("💡 **Note:** Credentials are managed securely via Streamlit Secrets.")
@@ -400,14 +404,23 @@ with tab_jobs:
                     score = job.relevance_score
                     color = "green" if score >= 80 else "orange" if score >= 50 else "red"
                     
+                    # Standardize the date for display
+                    display_date = getattr(job, "posted_at", "Date Unknown")
+
                     with st.expander(f"**:{color}[{score}/100]** {job.title} @ {getattr(job, 'company', 'Unknown')}"):
                         c1, c2 = st.columns([3, 1])
                         with c1:
-                            st.markdown(f"**Source:** {job.platform}")
-                            st.markdown(f"**Why:** {job.reasoning}")
-                            if hasattr(job, 'gap_analysis'): st.info(f"{job.gap_analysis}")
-                            st.markdown(f"[🔗 **Link**]({job.url})")
-
+                            # 📅 ADDING DATE POSTED HERE
+                            st.markdown(f"**📅 Date Posted:** {display_date}")
+                            st.markdown(f"**🌐 Source:** {job.platform}")
+                            st.markdown("---") # Visual separator
+                            
+                            st.markdown(f"**💡 Why:** {job.reasoning}")
+                            if hasattr(job, 'gap_analysis'): 
+                                st.info(f"**Gap Analysis:** {job.gap_analysis}")
+                            
+                            st.markdown(f"[🔗 **View Original Listing**]({job.url})")
+                            
                         with c2:
                             if st.button("✍️ Draft Letter", key=f"cl_{job.id}"):
                                 with st.spinner("Generating..."):

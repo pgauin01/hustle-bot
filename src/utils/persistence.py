@@ -394,7 +394,8 @@ def save_new_matches(jobs):
         today_str = datetime.now().strftime("%Y-%m-%d")
 
         # 🛡️ 2. CHECK SHEET FOR EXISTING IDs (Preventing duplicates)
-        existing_URL = set(ws.col_values(5))
+        existing_ids = set(ws.col_values(1))
+        existing_url = set(ws.col_values(5)) # Also track URLs to prevent duplicates if IDs are missing
 
         # 🛡️ 3. DAILY SAFETY VALVE (Limit to 15 per day)
         all_rows = ws.get_all_values()
@@ -412,7 +413,7 @@ def save_new_matches(jobs):
             if saved_now >= slots_left: break
             
             # Skip if ID already exists in sheet
-            if str(job.URL) in existing_URL:
+            if str(job.url) in existing_url:
                 continue
 
             # Standardize Date: Use job date if available, else today. Force string with '
@@ -452,7 +453,7 @@ def delete_new_match(job_id):
 
 
 def load_new_matches():
-    """Loads all jobs and normalizes any numeric dates back to YYYY-MM-DD."""
+    """Loads all jobs and robustly converts numeric dates (like 46077) to YYYY-MM-DD."""
     try:
         sh = get_sheet_connection()
         if not sh: return []
@@ -461,22 +462,43 @@ def load_new_matches():
         
         jobs = []
         for d in data:
+            # Helper to safely get keys (case-insensitive)
             def g(k): return d.get(k) or d.get(k.lower()) or ""
             
-            j = Job(id=str(g("ID")), platform=g("Platform"), title=g("Title"), 
-                    company=g("Company"), description="", url=g("URL"))
+            j = Job(
+                id=str(g("ID")), 
+                platform=g("Platform"), 
+                title=g("Title"), 
+                company=g("Company"), 
+                description="", 
+                url=g("URL")
+            )
             
-            # Recover date even if Google Sheets turned it into a number (like 46077)
+            # --- ROBUST DATE CONVERSION ---
             raw_date = g("Date Posted")
-            if isinstance(raw_date, (int, float)):
-                j.posted_at = (datetime(1899, 12, 30) + timedelta(days=raw_date)).strftime("%Y-%m-%d")
-            else:
-                j.posted_at = str(raw_date).replace("'", "") # Remove ' if present
+            try:
+                # 1. Try to convert if it's a number (46077) or a string of a number ("46077")
+                date_num = float(raw_date)
+                # Google Sheets dates start from Dec 30, 1899
+                converted_date = datetime(1899, 12, 30) + timedelta(days=date_num)
+                j.posted_at = converted_date.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                # 2. If it's already a string (like "2026-02-24"), just clean it up
+                j.posted_at = str(raw_date).replace("'", "")
+            
+            # Use a fallback if still empty
+            if not j.posted_at or j.posted_at == "None":
+                j.posted_at = "Recently Found"
+            # ------------------------------
 
-            try: j.relevance_score = int(float(g("Score")))
-            except: j.relevance_score = 0
+            try: 
+                j.relevance_score = int(float(g("Score")))
+            except: 
+                j.relevance_score = 0
+                
             j.reasoning = g("Reasoning")
             jobs.append(j)
+            
         return jobs
     except Exception as e:
         print(f"❌ Error loading matches: {e}")

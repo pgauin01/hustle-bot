@@ -3,7 +3,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import os
 import json
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from ..models.job import Job # <--- Need this to convert dicts back to Job objects
 
 def get_sheet_connection(sheet_url=None):
@@ -91,11 +91,11 @@ def load_new_matches():
         jobs = []
         
         for d in data:
-            # Helper to safely get keys
-            def g(k): return str(d.get(k) or d.get(k.lower()) or "")
+            # Helper to safely get keys while preserving numeric values
+            def g(k): return d.get(k) or d.get(k.lower()) or ""
 
-            raw_id = g("ID")
-            raw_title = g("Title")
+            raw_id = str(g("ID"))
+            raw_title = str(g("Title"))
 
             # 🛡️ THE SHIELD: Ignore blank rows OR rows that start with "Column" 
             if not raw_id or raw_id.lower().startswith("column"):
@@ -103,19 +103,30 @@ def load_new_matches():
 
             j = Job(
                 id=raw_id,
-                platform=g("Platform") or "Unknown",
+                platform=str(g("Platform")) or "Unknown",
                 title=raw_title,
-                company=g("Company"),
+                company=str(g("Company")),
                 description="Loaded from Sheet (Desc unavailable)", 
-                url=g("URL"),
+                url=str(g("URL")),
                 budget_min=0, budget_max=0
             )
             
             try: j.relevance_score = int(float(g("Score")))
             except: j.relevance_score = 0
             
-            j.reasoning = g("Reasoning")
-            j.posted_at = g("Date Posted")
+            j.reasoning = str(g("Reasoning"))
+
+            # Convert Google Sheets serial dates (e.g., 46077) into YYYY-MM-DD.
+            raw_date = g("Date Posted")
+            try:
+                date_num = float(raw_date)
+                converted_date = datetime(1899, 12, 30) + timedelta(days=date_num)
+                j.posted_at = converted_date.strftime("%Y-%m-%d")
+            except (ValueError, TypeError):
+                j.posted_at = str(raw_date).replace("'", "").strip()
+
+            if not j.posted_at or j.posted_at == "None":
+                j.posted_at = "Recently Found"
             
             jobs.append(j)
             

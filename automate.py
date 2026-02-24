@@ -16,8 +16,8 @@ TARGET_ROLES = [
     "Blockchain Developer" 
 ]
 
-# PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
-PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely"]
+PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
+# PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely"]
 
 
 def get_role_for_current_time():

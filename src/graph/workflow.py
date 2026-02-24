@@ -16,6 +16,7 @@ from ..platforms.upwork import fetch_upwork_api
 from ..platforms.freelancer import fetch_freelancer_api
 from ..platforms.linkedin import fetch_linkedin_jobs
 from dotenv import load_dotenv  
+from ..utils.persistence import save_dismissed_job
 
 load_dotenv()
 
@@ -141,12 +142,27 @@ def score_jobs(state: JobState):
 
     scored = score_jobs_with_resume(technically_qualified, resume_text)
     
-    # 4. SORT BY SCORE & KEEP TOP 3
-    # Sort from highest relevance_score to lowest
-    scored.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
+    # 4. 🛡️ THE AUTO-GRAVEYARD GATEKEEPER
+    good_jobs = []
+    print(f"🧹 Filtering {len(scored)} scored jobs...")
     
-    # Slice the list to only keep the first 5
-    top_5_jobs = scored[:5]
+    for job in scored:
+        score = getattr(job, "relevance_score", 0)
+        if score >= 80:
+            good_jobs.append(job)
+        else:
+            # Silently dump terrible matches (like US W2 jobs) so they never return!
+            print(f"   🚫 Auto-Trashing '{job.title}' (Score: {score})")
+            save_dismissed_job(job)
+            
+    print(f"✅ Kept {len(good_jobs)} high-quality matches.")
+
+    # 5. SORT BY SCORE & KEEP TOP 5
+    # Sort from highest relevance_score to lowest
+    good_jobs.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
+    
+    # Slice the list to only keep the best ones
+    top_5_jobs = good_jobs[:5]
 
     return {"filtered_jobs": top_5_jobs}
 

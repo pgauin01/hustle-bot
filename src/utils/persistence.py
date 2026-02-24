@@ -394,7 +394,7 @@ def save_new_matches(jobs):
         today_str = datetime.now().strftime("%Y-%m-%d")
 
         # 🛡️ 2. CHECK SHEET FOR EXISTING IDs (Preventing duplicates)
-        existing_ids = set(ws.col_values(1))
+        existing_URL = set(ws.col_values(5))
 
         # 🛡️ 3. DAILY SAFETY VALVE (Limit to 15 per day)
         all_rows = ws.get_all_values()
@@ -412,7 +412,7 @@ def save_new_matches(jobs):
             if saved_now >= slots_left: break
             
             # Skip if ID already exists in sheet
-            if str(job.id) in existing_ids:
+            if str(job.URL) in existing_URL:
                 continue
 
             # Standardize Date: Use job date if available, else today. Force string with '

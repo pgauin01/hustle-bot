@@ -114,9 +114,9 @@ def score_jobs_with_resume(jobs, resume_text):
         retries=llm_retries,
     )
 
-    # 2. The "Career Coach" Prompt
+    # 2. THE STRICT RECRUITER PROMPT
     prompt_template = """
-    You are an expert Technical Recruiter.
+    You are an expert, highly critical Technical Recruiter.
     I will give you a Candidate Profile and a list of Jobs.
 
     CANDIDATE PROFILE:
@@ -125,12 +125,18 @@ def score_jobs_with_resume(jobs, resume_text):
     JOBS LIST:
     {jobs_data}
 
+    YOUR SCORING RULES:
+    1. Base Score: Start at 100.
+    2. Location Penalty: If the job requires Hybrid, On-Site, or relocation to a specific country (e.g., USA, Australia, UK) and the candidate does not live there, DEDUCT 80 POINTS immediately.
+    3. Tech Stack Penalty: If the job explicitly requires a core language/framework (like C#, .NET, Java, Azure) that is entirely missing from the candidate's resume, DEDUCT 50 POINTS.
+    4. Reward: Only give scores above 80 if the candidate matches BOTH the core backend stack AND the AI requirements.
+
     For each job, provide a JSON object with:
     - "id": The job ID provided.
-    - "score": 0-100 (How well the candidate fits).
-    - "reasoning": A 1-sentence summary of why (e.g., "Perfect match for Django skills").
-    - "gaps": A short string listing MISSING skills or experience (e.g., "Missing AWS and Kubernetes").
-    - "advice": A short strategy tip (e.g., "Highlight your side project X to cover the AWS gap").
+    - "score": 0-100 (Apply the strict penalties above!).
+    - "reasoning": A 1-sentence summary of why (e.g., "Scored low due to missing C#/.NET requirement and Hybrid Sydney location").
+    - "gaps": A short string listing MISSING skills (e.g., "Missing Azure, C#, and Sydney location").
+    - "advice": A short strategy tip.
 
     Return ONLY a JSON list.
     """
@@ -138,7 +144,7 @@ def score_jobs_with_resume(jobs, resume_text):
     prompt = PromptTemplate(template=prompt_template, input_variables=["resume", "jobs_data"])
     chain = prompt | llm
 
-    # 3. Batch Process (to save time/money)
+    # 3. Batch Process 
     batch_size = int(os.getenv("GEMINI_BATCH_SIZE", "4"))
     batch_attempts = int(os.getenv("GEMINI_BATCH_ATTEMPTS", "3"))
     scored_jobs = []
@@ -149,13 +155,12 @@ def score_jobs_with_resume(jobs, resume_text):
         batch = jobs[i : i + batch_size]
         ok = _score_batch_with_retry(
             chain=chain,
-            resume_text=resume_text,
+            resume_text=resume_text, # Passed the full resume!
             batch=batch,
             max_attempts=batch_attempts,
-            desc_limit=1200,
+            desc_limit=5000, # 🚀 INCREASED FROM 1200 TO 5000 so it reads the "Must Haves"!
         )
 
-        # If a larger batch fails entirely, try each job individually.
         if not ok and len(batch) > 1:
             print(f"   [fallback] Single-job scoring for {len(batch)} jobs.")
             for job in batch:
@@ -164,7 +169,7 @@ def score_jobs_with_resume(jobs, resume_text):
                     resume_text=resume_text,
                     batch=[job],
                     max_attempts=2,
-                    desc_limit=900,
+                    desc_limit=5000, # 🚀 INCREASED HERE TOO
                 )
 
         scored_jobs.extend(batch)

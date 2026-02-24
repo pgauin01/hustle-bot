@@ -288,7 +288,6 @@ with tab_manual:
                     st.warning(f"⚠️ You have already saved '{m_title}' at '{m_company}'!")
                 else:
                     with st.spinner("🤖 Analyzing & Saving..."):
-                        # 2. 🛡️ SMART ID: Create a deterministic ID instead of a random timestamp
                         import hashlib
                         unique_str = f"{m_title}_{m_company}_{m_url}".lower().replace(" ", "")
                         manual_id = f"manual_{hashlib.md5(unique_str.encode()).hexdigest()[:8]}"
@@ -299,13 +298,22 @@ with tab_manual:
                         scored_jobs = score_jobs_with_resume([new_job], profile_text)
                         final_job = scored_jobs[0]
                         
-                        save_manual_job(final_job)
-                        
-                        # Add to session immediately
-                        if "results" not in st.session_state: st.session_state["results"] = {"filtered_jobs": []}
-                        st.session_state["results"]["filtered_jobs"].insert(0, final_job)
-                        
-                        st.success(f"✅ Saved! Score: {final_job.relevance_score}/100")
+                        # 🛡️ THE GATEKEEPER: Only save if the score is decent (e.g., 50 or higher)
+                        if final_job.relevance_score < 50:
+                            st.error(f"🚫 Job Rejected! Score: {final_job.relevance_score}/100")
+                            st.warning(f"**AI Reasoning:** {final_job.reasoning}")
+                            if hasattr(final_job, 'gap_analysis'): 
+                                st.info(f"**Missing:** {final_job.gap_analysis}")
+                            st.markdown("*(This job was **not** saved to your database to prevent clutter.)*")
+                        else:
+                            save_manual_job(final_job)
+                            
+                            # Add to session immediately
+                            if "results" not in st.session_state: st.session_state["results"] = {"filtered_jobs": []}
+                            st.session_state["results"]["filtered_jobs"].insert(0, final_job)
+                            
+                            st.success(f"✅ Saved! Score: {final_job.relevance_score}/100")
+                            st.info(f"**AI Reasoning:** {final_job.reasoning}")
 
 # --- TAB 3: MATCHES ---
 with tab_jobs:
@@ -393,25 +401,25 @@ with tab_jobs:
                                     save_cover_letter(job.id, content, getattr(job, "company", "Unknown"))
                                     st.rerun()
                             
-                            if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
-                                prof = load_profile()
-                                if prof:
-                                    with st.spinner("🔍 Fetching full details & Tailoring..."):
-                                        if not job.description or len(job.description) < 100 or "unavailable" in job.description:
-                                            print(f"🔄 Re-fetching details for: {job.title} ({job.platform})")
-                                            new_desc = smart_fetch_description(job.url)
-                                            if new_desc:
-                                                job.description = new_desc
-                                                print("✅ Successfully fetched fresh description.")
-                                            else:
-                                                st.warning(f"Could not fetch details from {job.platform}. Resume might be generic.")
+                            # if st.button("📄 Tailor Resume", key=f"res_{job.id}"):
+                            #     prof = load_profile()
+                            #     if prof:
+                            #         with st.spinner("🔍 Fetching full details & Tailoring..."):
+                            #             if not job.description or len(job.description) < 100 or "unavailable" in job.description:
+                            #                 print(f"🔄 Re-fetching details for: {job.title} ({job.platform})")
+                            #                 new_desc = smart_fetch_description(job.url)
+                            #                 if new_desc:
+                            #                     job.description = new_desc
+                            #                     print("✅ Successfully fetched fresh description.")
+                            #                 else:
+                            #                     st.warning(f"Could not fetch details from {job.platform}. Resume might be generic.")
                                         
-                                        resume_content = tailor_resume(job, prof)
-                                        path = save_tailored_resume(resume_content, getattr(job, "company", "Unknown"), job.title)
-                                        st.success(f"Generated: {path}")
-                                        st.rerun()
-                                else: 
-                                    st.error("Profile is empty! Update it in the Profile tab.")
+                            #             resume_content = tailor_resume(job, prof)
+                            #             path = save_tailored_resume(resume_content, getattr(job, "company", "Unknown"), job.title)
+                            #             st.success(f"Generated: {path}")
+                            #             st.rerun()
+                            #     else: 
+                            #         st.error("Profile is empty! Update it in the Profile tab.")
                             
                             # --- TRACKING LOGIC ---
                             if st.button("✅ Track", key=f"trk_{job.id}"):

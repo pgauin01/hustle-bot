@@ -17,6 +17,7 @@ from ..platforms.freelancer import fetch_freelancer_api
 from ..platforms.linkedin import fetch_linkedin_jobs
 from dotenv import load_dotenv  
 from ..utils.persistence import save_dismissed_job
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -143,28 +144,32 @@ def score_jobs(state: JobState):
     scored = score_jobs_with_resume(technically_qualified, resume_text)
     
     # 4. 🛡️ THE AUTO-GRAVEYARD GATEKEEPER
-    good_jobs = []
-    print(f"🧹 Filtering {len(scored)} scored jobs...")
+    now = datetime.now()
+    elite_matches = []
     
     for job in scored:
         score = getattr(job, "relevance_score", 0)
-        if score >= 85:
-            good_jobs.append(job)
+        
+        # Check Date
+        is_fresh = True
+        if job.posted_at:
+            try:
+                job_date = datetime.strptime(job.posted_at, "%Y-%m-%d")
+                if (now - job_date).days > 2: # Older than 48 hours
+                    is_fresh = False
+            except: pass 
+
+        # Only proceed if it's an Elite Match (85+) and Fresh
+        if score >= 85 and is_fresh:
+            elite_matches.append(job)
         else:
-            # Silently dump terrible matches (like US W2 jobs) so they never return!
-            print(f"   🚫 Auto-Trashing '{job.title}' (Score: {score})")
-            save_dismissed_job(job)
-            
-    print(f"✅ Kept {len(good_jobs)} high-quality matches.")
+            # Ghost the bad/old ones so we don't see them again
+            # save_dismissed_job(job)?
+            print(f"   ⚠️ Skipping low-score job: {job.title} ({score}/100)")
 
-    # 5. SORT BY SCORE & KEEP TOP 5
-    # Sort from highest relevance_score to lowest
-    good_jobs.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
-    
-    # Slice the list to only keep the best ones
-    top_3_jobs = good_jobs[:3]
-
-    return {"filtered_jobs": top_3_jobs}
+    # Return top 3 for this specific role run
+    elite_matches.sort(key=lambda x: x.relevance_score, reverse=True)
+    return {"filtered_jobs": elite_matches[:3]}
 
 # --- 4. LOGGER (RUNS FIRST) ---
 def log_results_node(state: JobState):

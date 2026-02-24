@@ -148,7 +148,7 @@ def score_jobs(state: JobState):
     
     for job in scored:
         score = getattr(job, "relevance_score", 0)
-        if score >= 80:
+        if score >= 85:
             good_jobs.append(job)
         else:
             # Silently dump terrible matches (like US W2 jobs) so they never return!
@@ -162,9 +162,9 @@ def score_jobs(state: JobState):
     good_jobs.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
     
     # Slice the list to only keep the best ones
-    top_5_jobs = good_jobs[:5]
+    top_3_jobs = good_jobs[:3]
 
-    return {"filtered_jobs": top_5_jobs}
+    return {"filtered_jobs": top_3_jobs}
 
 # --- 4. LOGGER (RUNS FIRST) ---
 def log_results_node(state: JobState):
@@ -199,7 +199,7 @@ def notify_user(state):
     high_value.sort(key=lambda x: getattr(x, "relevance_score", 0), reverse=True)
     
     # CAP: Top 5 Only (To match our Executive Summary strategy)
-    top_picks = high_value[:5]
+    top_picks = high_value[:3]
     
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")

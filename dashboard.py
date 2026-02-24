@@ -517,7 +517,7 @@ with tab_analytics:
         st.bar_chart(platform_counts, x="Platform", y="Count", color="Platform")
 
 
-# --- TAB 6: DOCS (RESUMES & COVER LETTERS) ---
+# --- TAB 6: DOCS (COVER LETTERS ONLY) ---
 with tab_docs:
     st.header("📂 Career Documents")
     
@@ -525,72 +525,29 @@ with tab_docs:
     if st.button("🔄 Refresh List"):
         st.rerun()
 
-    col1, col2 = st.columns(2)
-
-    # --- LEFT COLUMN: RESUMES (Local Files) ---
-    with col1:
-        st.subheader("📄 Tailored Resumes")
-        resume_dir = "generated_resumes"
-        if not os.path.exists(resume_dir): os.makedirs(resume_dir)
+    st.subheader("✉️ Cover Letters")
+    letters = load_cover_letters()
+    
+    if not letters:
+        st.info("No cover letters found.")
+    else:
+        for job_id, data in letters.items():
+            company = data.get("company", "Unknown")
+            date = data.get("date", "")
+            content = data.get("content", "")
             
-        files = [f for f in os.listdir(resume_dir) if f.endswith(".md")]
-        
-        if not files:
-            st.info("No resumes found.")
-        else:
-            files.sort(key=lambda x: os.path.getmtime(os.path.join(resume_dir, x)), reverse=True)
-            
-            for f_name in files:
-                file_path = os.path.join(resume_dir, f_name)
-                t = os.path.getmtime(file_path)
-                date_str = datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M')
+            with st.expander(f"✉️ {company} ({date})"):
+                st.text_area("Content", value=content, height=200, key=f"v_cl_{job_id}")
                 
-                with st.expander(f"📄 {f_name} ({date_str})"):
-                    # Preview
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    st.caption("Preview:")
-                    st.code(content[:300] + "...", language="markdown")
-                    
-                    c1, c2 = st.columns([1, 1])
-                    with c1:
-                        st.download_button("⬇️ Download", content, f_name)
-                    with c2:
-                        # DELETE BUTTON
-                        if st.button("🗑️ Delete", key=f"del_res_{f_name}"):
-                            from src.utils.file_manager import delete_resume
-                            if delete_resume(f_name):
-                                st.success(f"Deleted {f_name}")
-                                time.sleep(0.5)
-                                st.rerun()
-                            else:
-                                st.error("Failed to delete.")
-
-    # --- RIGHT COLUMN: COVER LETTERS (Google Sheets) ---
-    with col2:
-        st.subheader("✉️ Cover Letters")
-        letters = load_cover_letters()
-        
-        if not letters:
-            st.info("No cover letters found.")
-        else:
-            for job_id, data in letters.items():
-                company = data.get("company", "Unknown")
-                date = data.get("date", "")
-                content = data.get("content", "")
-                
-                with st.expander(f"✉️ {company} ({date})"):
-                    st.text_area("Content", value=content, height=200, key=f"v_cl_{job_id}")
-                    
-                    c1, c2 = st.columns([1, 1])
-                    with c1:
-                        st.info("👉 Ctrl+A, Ctrl+C to copy")
-                    with c2:
-                        # DELETE BUTTON
-                        if st.button("🗑️ Delete", key=f"del_cl_{job_id}"):
-                            if delete_cover_letter(job_id):
-                                st.success(f"Deleted letter for {company}")
-                                time.sleep(1) # Give API time to sync
-                                st.rerun()
-                            else:
-                                st.error("Failed to delete.")
+                c1, c2 = st.columns([1, 1])
+                with c1:
+                    st.info("👉 Ctrl+A, Ctrl+C to copy")
+                with c2:
+                    # DELETE BUTTON
+                    if st.button("🗑️ Delete", key=f"del_cl_{job_id}"):
+                        if delete_cover_letter(job_id):
+                            st.success(f"Deleted letter for {company}")
+                            time.sleep(1) # Give API time to sync
+                            st.rerun()
+                        else:
+                            st.error("Failed to delete.")

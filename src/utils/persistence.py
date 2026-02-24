@@ -378,9 +378,8 @@ def clear_graveyard():
         return False
     
 
-    # --- NEW MATCHES & GLOBAL SAFETY VALVE ---
 def save_new_matches(jobs):
-    """Saves jobs matching your 8-column header with forced string formatting for dates."""
+    """Saves jobs matching your 8-column header with forced 'YYYY-MM-DD format."""
     try:
         sh = get_sheet_connection()
         if not sh: return
@@ -391,66 +390,34 @@ def save_new_matches(jobs):
             ws = sh.add_worksheet(title="New_Matches", rows="100", cols="8")
             ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Score", "Reasoning"])
 
-        # Check limit (Optional: You can keep or adjust this)
-        all_values = ws.get_all_values()
-        if len(all_values) > 50: # Increased limit for visibility
-             print("🛑 Capacity check: Sheet has significant data.")
-
-        for job in jobs:
-            # Force date as string using a single quote prefix for Google Sheets
-            date_val = f"'{job.posted_at}" if job.posted_at else "Recent"
-            
-            row = [
-                str(job.id),
-                job.title,
-                getattr(job, "company", "Unknown"),
-                job.platform,
-                job.url,
-                date_val,                 # Date Posted (Col 6) - Forced String
-                str(job.relevance_score),  # Score (Col 7)
-                job.reasoning              # Reasoning (Col 8)
-            ]
-            ws.append_row(row)
-            print(f"✅ Saved Elite Match: {job.title}")
-
-    except Exception as e:
-        print(f"❌ Error in save_new_matches: {e}")
-
-# --- Updated in src/utils/persistence.py ---
-
-def save_new_matches(jobs):
-    """Saves jobs to the 8-column header. Uses current date if job.posted_at is missing."""
-    try:
-        sh = get_sheet_connection()
-        if not sh: return
-        
-        try:
-            ws = sh.worksheet("New_Matches")
-        except:
-            ws = sh.add_worksheet(title="New_Matches", rows="100", cols="8")
-            ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Score", "Reasoning"])
-
-        # 1. Get current date for fallback
+        # 1. Get current date for fallback in strict format
         today_str = datetime.now().strftime("%Y-%m-%d")
 
-        # 🛡️ 2. CHECK DAILY LIMIT (Safety Valve)
+        # 🛡️ 2. CHECK SHEET FOR EXISTING IDs (Preventing duplicates)
+        existing_ids = set(ws.col_values(1))
+
+        # 🛡️ 3. DAILY SAFETY VALVE (Limit to 15 per day)
         all_rows = ws.get_all_values()
-        # Count rows added today by checking the 'Date Posted' column (Col 6)
-        today_count = 0
-        if len(all_rows) > 1:
-            today_count = sum(1 for row in all_rows if len(row) >= 6 and today_str in row)
+        # Count rows added today by looking at the Date Posted column (Col 6)
+        today_count = sum(1 for row in all_rows if len(row) >= 6 and today_str in str(row[5]))
 
         if today_count >= 15:
-            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today. Skipping.")
+            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today.")
             return
 
-        # 3. Save matches
         slots_left = 15 - today_count
-        for job in jobs[:slots_left]:
-            # FIX: Use job.posted_at if it exists, otherwise use today's date
-            # Prefix with ' to force Google Sheets to treat it as a string
+        saved_now = 0
+
+        for job in jobs:
+            if saved_now >= slots_left: break
+            
+            # Skip if ID already exists in sheet
+            if str(job.id) in existing_ids:
+                continue
+
+            # Standardize Date: Use job date if available, else today. Force string with '
             final_date = job.posted_at if job.posted_at else today_str
-            date_val = f"'{final_date}"
+            date_val = f"'{final_date}" # The ' prevents Google Sheets from changing format
             
             row = [
                 str(job.id),
@@ -458,12 +425,14 @@ def save_new_matches(jobs):
                 getattr(job, "company", "Unknown"),
                 job.platform,
                 job.url,
-                date_val,                 # Date Posted (Col 6)
-                str(job.relevance_score),  # Score (Col 7)
-                job.reasoning              # Reasoning (Col 8)
+                date_val,                 # Column 6: Date Posted
+                str(job.relevance_score),  # Column 7: Score
+                job.reasoning              # Column 8: Reasoning
             ]
             ws.append_row(row)
-            print(f"✅ Saved Elite Match: {job.title} (Dated: {final_date})")
+            existing_ids.add(str(job.id))
+            saved_now += 1
+            print(f"✅ Saved Elite Match: {job.title} (Format: {final_date})")
 
     except Exception as e:
         print(f"❌ Persistence Save Error: {e}")
@@ -480,3 +449,35 @@ def delete_new_match(job_id):
             print(f"🗑️ Deleted job {job_id} from New_Matches")
     except Exception as e:
         print(f"❌ Error deleting match: {e}")
+
+
+def load_new_matches():
+    """Loads all jobs and normalizes any numeric dates back to YYYY-MM-DD."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return []
+        ws = sh.worksheet("New_Matches")
+        data = ws.get_all_records()
+        
+        jobs = []
+        for d in data:
+            def g(k): return d.get(k) or d.get(k.lower()) or ""
+            
+            j = Job(id=str(g("ID")), platform=g("Platform"), title=g("Title"), 
+                    company=g("Company"), description="", url=g("URL"))
+            
+            # Recover date even if Google Sheets turned it into a number (like 46077)
+            raw_date = g("Date Posted")
+            if isinstance(raw_date, (int, float)):
+                j.posted_at = (datetime(1899, 12, 30) + timedelta(days=raw_date)).strftime("%Y-%m-%d")
+            else:
+                j.posted_at = str(raw_date).replace("'", "") # Remove ' if present
+
+            try: j.relevance_score = int(float(g("Score")))
+            except: j.relevance_score = 0
+            j.reasoning = g("Reasoning")
+            jobs.append(j)
+        return jobs
+    except Exception as e:
+        print(f"❌ Error loading matches: {e}")
+        return []

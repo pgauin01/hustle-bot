@@ -303,17 +303,76 @@ def should_skip_run(role, hours_cooldown=12):
     except:
         return False    
 
-def get_already_saved_ids():
-    """Reads Google Sheets to find jobs we already saved previously."""
+
+def save_dismissed_job(job):
+    """Saves a dismissed job to the Graveyard so the bot never fetches it again."""
     try:
         sh = get_sheet_connection()
-        if not sh: 
-            return []
+        if not sh: return
+        
+        try:
+            ws = sh.worksheet("Dismissed_Jobs")
+        except:
+            # Create the Graveyard if it doesn't exist
+            ws = sh.add_worksheet(title="Dismissed_Jobs", rows="100", cols="4")
+            ws.insert_row(["ID", "Title", "Company", "Date Dismissed"], index=1)
+        
+        existing_ids = set(ws.col_values(1))
+        if str(job.id) not in existing_ids:
+            from datetime import datetime
+            ws.append_row([
+                str(job.id), 
+                job.title, 
+                getattr(job, "company", "Unknown"), 
+                datetime.now().strftime("%Y-%m-%d")
+            ])
+            print(f"👻 Sent '{job.title}' to the Graveyard.")
             
-        ws = sh.worksheet("New_Matches")
-        # Get all values in the first column (Job IDs), skipping the header row
-        saved_ids = ws.col_values(1)[1:] 
-        return saved_ids
     except Exception as e:
-        print(f"⚠️ Note: Could not load previously saved IDs (Sheet might be empty or missing). Details: {e}")
-        return []     
+        print(f"❌ Error dismissing job: {e}")
+
+def get_already_saved_ids():
+    """Reads all known job IDs from every sheet, including the Graveyard."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return set()
+        
+        ids = set()
+        # 🛡️ Look at all sheets so we never re-process old data
+        sheets_to_check = ["New_Matches", "Tracker", "Manual_Jobs", "Dismissed_Jobs"]
+        
+        for s_name in sheets_to_check:
+            try:
+                ws = sh.worksheet(s_name)
+                col_vals = ws.col_values(1)
+                if len(col_vals) > 1:
+                    ids.update(col_vals[1:]) # Skip the header row
+            except:
+                pass # Tab doesn't exist yet, skip it
+                
+        return ids
+    except Exception as e:
+        print(f"❌ Error fetching saved IDs: {e}")
+        return set()
+    
+def clear_graveyard():
+    """Wipes all dismissed jobs from the Graveyard tab."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return False
+        
+        try:
+            ws = sh.worksheet("Dismissed_Jobs")
+            ws.clear() # Nuke all the data
+            
+            # Re-inject the clean headers
+            ws.insert_row(["ID", "Title", "Company", "Date Dismissed"], index=1)
+            print("🗑️ Graveyard successfully cleared.")
+            return True
+        except:
+            # If the tab doesn't exist yet, it's already "clear"!
+            return True 
+            
+    except Exception as e:
+        print(f"❌ Error clearing graveyard: {e}")
+        return False

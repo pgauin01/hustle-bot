@@ -25,7 +25,10 @@ from src.utils.persistence import (
     load_cover_letters,
     save_application, 
     load_applications, 
-    update_status
+    update_status,
+    get_already_saved_ids, 
+    save_dismissed_job,
+    clear_graveyard
 )
 # NEW MATCHES IMPORTS
 from src.utils.google_sheets import log_jobs_to_sheet, load_new_matches, delete_new_match
@@ -154,6 +157,16 @@ with st.sidebar:
             st.warning("⚠️ Telegram: Not Configured")
 
     st.markdown("---")
+    st.markdown("### ⚙️ Settings")
+    
+    if st.button("🗑️ Clear Graveyard"):
+        with st.spinner("Wiping dismissed jobs..."):
+            if clear_graveyard():
+                st.success("Graveyard cleared! Dismissed jobs will reappear in your next search.")
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error("Failed to clear graveyard.")
     
     # Keep the "Reset" or "Clear Cache" button if you want
     if st.button("🔄 Reload App"):
@@ -438,12 +451,18 @@ with tab_jobs:
                                 st.rerun()
 
                             if st.button("❌ Dismiss", key=f"d_{job.id}"):
+                                # 1. 🛡️ Save to Graveyard BEFORE deleting
+                                save_dismissed_job(job)
+                                
+                                # 2. Delete from active views
                                 if job.platform == "Manual Entry":
                                     delete_manual_job(job.id)
                                 else:
                                     delete_new_match(job.id)
                                     
+                                # 3. Remove from UI memory
                                 st.session_state["results"]["filtered_jobs"] = [j for j in all_jobs if j.id != job.id]
+                                st.toast("👻 Sent to Graveyard!")
                                 st.rerun()
 
 # --- TAB 4: TRACKER ---

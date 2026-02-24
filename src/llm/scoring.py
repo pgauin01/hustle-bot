@@ -130,6 +130,11 @@ def score_jobs_with_resume(jobs, resume_text):
     2. Location Penalty: If the job requires Hybrid, On-Site, or relocation to a specific country (e.g., USA, Australia, UK) and the candidate does not live there, DEDUCT 80 POINTS immediately.
     3. Tech Stack Penalty: If the job explicitly requires a core language/framework (like C#, .NET, Java, Azure) that is entirely missing from the candidate's resume, DEDUCT 50 POINTS.
     4. Reward: Only give scores above 80 if the candidate matches BOTH the core backend stack AND the AI requirements.
+    5. Visa & Contract Penalty: The candidate is an international applicant from India. If the job description contains ANY of the following phrases or requirements, DEDUCT 100 POINTS immediately:
+       - "US Citizen" or "Green Card required"
+       - "W2 Only" or "No C2C" (Corp-to-Corp)
+       - "No Visa Sponsorship" or "Must be authorized to work in the US without sponsorship"
+       - "Clearance required" (e.g., Secret, Top Secret)
 
     For each job, provide a JSON object with:
     - "id": The job ID provided.

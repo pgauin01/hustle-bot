@@ -9,7 +9,9 @@ TARGET_ROLES = [
     "Generative AI Engineer", "RAG Engineer", "AI Product Engineer",
     "AI Systems Engineer", "Founding Engineer (AI)", "Full Stack AI Engineer",
     "Machine Learning Engineer", "Backend Engineer (AI)", "Principal AI Engineer",
-    "Staff Software Engineer", "React Native AI Engineer", "Python AI Engineer"
+    "Staff Software Engineer", "React Native AI Engineer", "Python AI Engineer", 
+    "Smart Contract Engineer" , "Solidity Developer", "Ethereum Developer",
+    "Blockchain Developer" 
 ]
 
 PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]

@@ -54,11 +54,14 @@ def suggest_roles(skills=""):
         "Founding Engineer (AI)",
         "Full Stack AI Engineer",
         "AI Solutions Engineer",
-        "Senior Full Stack Engineer",
         "AI Application Engineer",
         "AI Systems Engineer",
         "RAG & LLM Applications Engineer",
         "Generative AI Software Engineer",
+        "Smart Contract Engineer" ,
+        "Solidity Developer",
+        "Ethereum Developer",
+        "Blockchain Developer" 
     ]
     
 def smart_fetch_description(url):

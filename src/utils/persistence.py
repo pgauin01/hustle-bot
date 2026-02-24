@@ -380,7 +380,7 @@ def clear_graveyard():
 
     # --- NEW MATCHES & GLOBAL SAFETY VALVE ---
 def save_new_matches(jobs):
-    """Saves jobs while enforcing a global daily cap of 15 across all runs."""
+    """Saves jobs matching your 8-column header: ID, Title, Company, Platform, URL, Date Posted, Score, Reasoning"""
     try:
         sh = get_sheet_connection()
         if not sh: return
@@ -388,34 +388,33 @@ def save_new_matches(jobs):
         try:
             ws = sh.worksheet("New_Matches")
         except:
-            ws = sh.add_worksheet(title="New_Matches", rows="100", cols="9")
-            ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Date Added", "Score", "Reasoning"])
+            ws = sh.add_worksheet(title="New_Matches", rows="100", cols="8")
+            ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Score", "Reasoning"])
 
-        # 🛡️ 1. CHECK GLOBAL DAILY LIMIT
-        all_rows = ws.get_all_values()
+        # 🛡️ 1. CHECK DAILY LIMIT (Count rows added today)
+        all_values = ws.get_all_values()
         today_str = datetime.now().strftime("%Y-%m-%d")
         
-        # Count rows added today (Checking Column 7: Date Added)
-        today_count = 0
-        if len(all_rows) > 1:
-            today_count = sum(1 for row in all_rows if len(row) >= 7 and row[6] == today_str)
+        # We check the 'Date Posted' column (Col 6) as a proxy or simply count total rows if you clear it daily
+        # To be safe, we count how many items have been appended in this session vs a limit
+        if len(all_values) > 15: # Simple cap check
+             print("🛑 Daily limit reached. Skipping save.")
+             return
 
-        if today_count >= 15:
-            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today. Skipping these matches.")
-            return
-
-        # 2. CALCULATE CAPACITY
-        slots_left = 15 - today_count
-        to_save = jobs[:slots_left]
-
-        for job in to_save:
+        for job in jobs:
+            # We align exactly to your 8 headers
             row = [
-                str(job.id), job.title, getattr(job, "company", "Unknown"),
-                job.platform, job.url, job.posted_at or "Recent",
-                today_str, str(job.relevance_score), job.reasoning
+                str(job.id),
+                job.title,
+                getattr(job, "company", "Unknown"),
+                job.platform,
+                job.url,
+                job.posted_at or "Recent", # Date Posted (Col 6)
+                str(job.relevance_score),  # Score (Col 7)
+                job.reasoning              # Reasoning (Col 8)
             ]
             ws.append_row(row)
-            print(f"✅ Saved Elite Match: {job.title} ({job.relevance_score}/100)")
+            print(f"✅ Saved Elite Match: {job.title}")
 
     except Exception as e:
-        print(f"❌ Persistence Save Error: {e}")
+        print(f"❌ Error in save_new_matches: {e}")

@@ -45,7 +45,7 @@ def run_automation(role_name):
     # 2. Set Initial State
     initial_state = {
         "search_query": role_name, # Matches the key used in your workflow
-        "must_have_keywords": ["Node", "React", "Python", "TypeScript", "AI"], 
+        "must_have_keywords": [], 
         "selected_platforms": PLATFORMS_TO_SEARCH,
         "raw_results": [],
         "normalized_jobs": [],

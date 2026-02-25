@@ -227,7 +227,7 @@ with tab_run:
     st.markdown("---")
 
     # 3. Targeted Roles Section (Hardcoded List)
-    st.success("👉 **Best fit for you:** Senior Full Stack Engineer | AI Systems | RAG & LLM Applications")
+    st.success("👉 **Best fit for you:** Senior Full Stack Engineer | Generative AI Engineer | Senior Frontend Engineer")
     st.write("### Targeted Roles")
     
     # Get the targeted roles (ensure suggest_roles is updated as we discussed previously)

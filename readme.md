@@ -21,10 +21,11 @@ Job boards heavily rate-limit scrapers. To solve this, HustleBot utilizes a **Ti
 
 ### 2. Global Deduplication & Cost Optimization
 
-To prevent unnecessary LLM token usage and API costs, the system uses **Google Sheets as a persistent database**.
+To prevent unnecessary LLM token usage and API costs, the system uses **Google Sheets as a persistent database** with strict API rate-limit protections.
 
-- Before passing raw scraped jobs to the LLM, the graph checks the database and instantly drops jobs that were processed in previous runs.
-- The system is capped to only process, log, and notify the user about the **Top 3 absolute best matches** per run.
+- **Shift-Left Duplicate Checking:** Before passing any manual or automated job to the LLM, the system queries the memory grid to instantly drop URLs or IDs processed in previous runs.
+- **The Safety Valve:** The system enforces a strict 30-job daily insertion limit via bulk-row updates to prevent database bloat and Google Sheets API quota crashes.
+- **Quality Gatekeeper:** Only jobs scoring an 80/100 or higher are saved to the CRM and sent via Telegram.
 
 ### 3. Agentic Workflow (LangGraph)
 
@@ -36,7 +37,8 @@ graph LR
     B --> C{Strict Keyword Filter}
     C -- Pass --> D[Gemini 2.0 Scorer]
     C -- Fail --> End
-    D -- Score > 80 --> E[Google Sheets CRM]
+    D -- Score >= 80 --> E[Google Sheets CRM via Bulk Insert]
+    D -- Score < 80 --> End
     E --> F[Telegram Exec Summary]
 ```
 ````
@@ -45,10 +47,9 @@ graph LR
 
 ## ✨ Core Features
 
-- **🕵️ Multi-Source Aggregation:** Pulls data from _RemoteOK_, _WeWorkRemotely_, _Upwork_, _Freelancer_, and _LinkedIn_.
+- **🕵️ Multi-Source Aggregation:** Pulls data from _RemoteOK_, _WeWorkRemotely_, _Freelancer_, and _LinkedIn_.
 - **🧠 Intelligent Semantic Scoring:** Gemini 2.0 acts as a technical recruiter, scoring jobs (0-100) based on tech stack alignment. It calculates missing gaps, strictly rejects irrelevant roles, and provides strategic application advice.
-- **👔 Dynamic Resume Tailoring:** Completely rewrites your master `profile.md` for _every_ specific high-quality match. It re-orders skills to match the JD, optimizes ATS keywords, and outputs a clean Markdown file.
-- **✍️ Auto-Drafting:** Generates personalized cover letters and freelance proposals ready for immediate submission.
+- **✍️ Auto-Drafting:** Generates highly personalized cover letters and freelance proposals ready for immediate submission, accessible directly from the UI.
 - **📱 Executive Summary Alerts:** Sends highly formatted HTML Telegram notifications featuring unicorn/high-match badges, AI reasoning, and "One-Click Apply" links.
 - **📊 Streamlit Command Center:** A fully deployed cloud dashboard to view matches, filter by score/date, manually inject jobs, and track application statuses.
 

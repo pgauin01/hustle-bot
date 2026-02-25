@@ -450,8 +450,6 @@ def save_new_matches(jobs):
 
     except Exception as e:
         print(f"❌ Persistence Save Error: {e}")
-    except Exception as e:
-        print(f"❌ Persistence Save Error: {e}")
 
 def delete_new_match(job_id):
     """Deletes a specific job from the New_Matches sheet."""

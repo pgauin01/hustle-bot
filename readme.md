@@ -1,4 +1,3 @@
-````markdown
 # 🤖 HustleBot: Autonomous AI Job Search Orchestrator
 
 **HustleBot** is a fully autonomous, production-grade AI agent that manages the entire job search pipeline. Built with **LangGraph** and **Google Gemini 2.0 Flash**, it continuously scrapes job boards, semantically scores opportunities against a master profile, and auto-generates tailored career documents (Resumes & Cover Letters) while tracking everything in a persistent CRM.
@@ -8,6 +7,8 @@
 ![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.0-8E44AD.svg)
 ![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B.svg)
 
+---
+
 ## 🌟 System Architecture & Engineering Highlights
 
 This project was built to solve the inefficiencies of manual job hunting by treating the process as a scalable data pipeline.
@@ -16,16 +17,21 @@ This project was built to solve the inefficiencies of manual job hunting by trea
 
 Job boards heavily rate-limit scrapers. To solve this, HustleBot utilizes a **Time-Based Indexing Scheduler** running via GitHub Actions.
 
-- It targets **15 distinct Engineering roles** (e.g., "RAG Engineer", "Full Stack AI Engineer").
-- The scheduler wakes up exactly every **96 minutes** (1440 mins / 15 roles), calculates the current UTC time, and executes a search for a single, specific role. This ensures 24/7 coverage without triggering platform bans.
+- Targets **15 distinct Engineering roles**
+- Scheduler wakes every **96 minutes** (1440 / 15)
+- Ensures 24/7 coverage without triggering bans
+
+---
 
 ### 2. Global Deduplication & Cost Optimization
 
-To prevent unnecessary LLM token usage and API costs, the system uses **Google Sheets as a persistent database** with strict API rate-limit protections.
+To prevent unnecessary LLM token usage and API costs, the system uses **Google Sheets as a persistent database**.
 
-- **Shift-Left Duplicate Checking:** Before passing any manual or automated job to the LLM, the system queries the memory grid to instantly drop URLs or IDs processed in previous runs.
-- **The Safety Valve:** The system enforces a strict 30-job daily insertion limit via bulk-row updates to prevent database bloat and Google Sheets API quota crashes.
-- **Quality Gatekeeper:** Only jobs scoring an 80/100 or higher are saved to the CRM and sent via Telegram.
+- **Shift-Left Duplicate Checking**
+- **30-job daily insertion limit**
+- **80+ score quality threshold**
+
+---
 
 ### 3. Agentic Workflow (LangGraph)
 
@@ -36,12 +42,10 @@ graph LR
     A[Multi-Source Scrapers] --> B[Deduplication Node]
     B --> C{Strict Keyword Filter}
     C -- Pass --> D[Gemini 2.0 Scorer]
-    C -- Fail --> End
+    C -- Fail --> X[Discard]
     D -- Score >= 80 --> E[Google Sheets CRM via Bulk Insert]
-    D -- Score < 80 --> End
+    D -- Score < 80 --> X
     E --> F[Telegram Exec Summary]
-```
-````
 
 ---
 

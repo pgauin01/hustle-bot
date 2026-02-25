@@ -394,7 +394,8 @@ def save_new_matches(jobs):
         # 1. Current day for fallback and daily cap checks
         # today = datetime.now().date()
         # 1. Get current date for comparison
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now()
+        today_str = f"{today.month}/{today.day}/{today.year}"
 
         # 🛡️ 2. CHECK GLOBAL DAILY LIMIT (Checking Column 6: Date Posted)
         all_rows = ws.get_all_values()
@@ -405,18 +406,19 @@ def save_new_matches(jobs):
             # We use 'in' to handle cases where the date has a single quote prefix
             today_count = sum(1 for row in all_rows if len(row) >= 6 and today_str in str(row[5]))
 
-        if today_count >= 15:
-            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/15 jobs today. Skipping.")
+        if today_count >= 30:
+            print(f"🛑 [SAFETY VALVE] Already saved {today_count}/30 jobs today. Skipping.")
             return
 
         # 3. CALCULATE REMAINING CAPACITY
-        slots_left = 15 - today_count
+        slots_left = 30 - today_count
         to_save = jobs[:slots_left]
 
         # 🛡️ 2. CHECK SHEET FOR EXISTING IDs (Preventing duplicates)
         existing_ids = set(ws.col_values(1))
         existing_url = set(ws.col_values(5)) # Also track URLs to prevent duplicates if IDs are missing
-
+        saved_now = 0
+        
         for job in to_save:
             if saved_now >= slots_left: break
             

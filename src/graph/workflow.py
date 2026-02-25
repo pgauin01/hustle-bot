@@ -234,7 +234,10 @@ def create_graph():
     
     workflow.add_node("normalizer", normalize_data)
     workflow.add_node("scorer", score_jobs)
-    workflow.add_node("logger", log_results_node) # ✅ Logger is now a node
+    
+    # ❌ REMOVED the logger node so we don't bypass the daily limit
+    # workflow.add_node("logger", log_results_node) 
+    
     workflow.add_node("notifier", notify_user)
 
     # Flow
@@ -247,10 +250,9 @@ def create_graph():
     
     workflow.add_edge("normalizer", "scorer")
     
-    # ✅ NEW ORDER: Scorer -> Logger -> Notifier -> END
-    # This ensures data is saved even if Telegram crashes
-    workflow.add_edge("scorer", "logger")
-    workflow.add_edge("logger", "notifier")
+    # ✅ NEW ORDER: Scorer -> Notifier -> END
+    # This skips the internal logger and lets automate.py handle the 30-job limit
+    workflow.add_edge("scorer", "notifier")
     workflow.add_edge("notifier", END)      
 
     return workflow.compile()

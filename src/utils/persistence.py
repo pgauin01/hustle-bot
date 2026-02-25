@@ -90,49 +90,70 @@ def update_status(job_id, new_status):
 
 # --- 2. MANUAL JOBS (Updated) ---
 def save_manual_job(job):
+    """Saves a manual job, strictly enforcing an 80+ score threshold and deduplication."""
     try:
-        sh = get_sheet_connection()
-        if not sh: return
-
+        # 🛡️ 1. SCORE THRESHOLD GATEKEEPER
         try:
-            worksheet = sh.worksheet("Manual_Jobs")
+            score = int(float(job.relevance_score))
+        except (ValueError, TypeError):
+            score = 0
+            
+        if score < 80:
+            print(f"🛑 [REJECTED] Manual Job '{job.title}' scored {score}/100. Must be 80+ to save.")
+            # Return a specific string or False so the UI knows it was rejected due to score
+            return "low_score" 
+
+        sh = get_sheet_connection()
+        if not sh: return False
+
+        # 2. Ensure sheet and headers exist
+        try:
+            ws = sh.worksheet("Manual_Jobs")
         except:
-            worksheet = sh.add_worksheet(title="Manual_Jobs", rows="100", cols="10")
+            ws = sh.add_worksheet(title="Manual_Jobs", rows="100", cols="8")
+            headers = ["ID", "Title", "Company", "Description", "URL", "Score", "Reason", "Gap Analysis"]
+            ws.append_row(headers)
 
-        # ENFORCE HEADERS
-        headers = ["ID", "Title", "Company", "Description", "URL", "Score", "Reason", "Gap Analysis"]
-        
-        # Check first row
-        first_row = []
-        try: first_row = worksheet.row_values(1)
-        except: pass
-        
-        if not first_row or first_row[0] != "ID":
-            print("📝 Adding Headers to Manual_Jobs...")
-            worksheet.insert_row(headers, index=1)
+        # 🛡️ 3. BULLETPROOF DUPLICATE CHECKING
+        all_rows = ws.get_all_values()
+        existing_ids = set(row[0] for row in all_rows if len(row) > 0)
+        existing_urls = set(row[4] for row in all_rows if len(row) >= 5)
 
+        if str(job.id) in existing_ids or str(job.url) in existing_urls:
+            print(f"⏭️ [DEBUG] Skipping Duplicate Manual Job: {job.title}")
+            return "duplicate"
+
+        # 🛠️ 4. STRICT 8-COLUMN ROW CREATION
         row = [
-            str(job.id),
-            job.title,
-            getattr(job, "company", "Unknown"),
-            job.description,
-            job.url,
-            str(job.relevance_score),
-            job.reasoning,
-            getattr(job, "gap_analysis", "")
+            str(job.id),                           
+            job.title,                             
+            getattr(job, "company", "Unknown"),    
+            job.description,                       
+            job.url,                               
+            str(score),                            
+            job.reasoning,                         
+            getattr(job, "gap_analysis", "")       
         ]
-        worksheet.append_row(row)
-        print(f"✅ Saved Manual Job: {job.title}")
+        
+        # 🚀 5. SAVE THE JOB
+        ws.append_row(row, value_input_option="RAW")
+        print(f"✅ Successfully saved Manual Job: {job.title} (Score: {score})")
+        return "saved"
 
     except Exception as e:
         print(f"❌ Manual Save Error: {e}")
+        return False
 
 def load_manual_jobs():
+    """Loads manual jobs and assigns a default 'posted_at' value for the UI."""
     try:
         sh = get_sheet_connection()
         if not sh: return []
-        try: worksheet = sh.worksheet("Manual_Jobs")
-        except: return []
+        
+        try: 
+            worksheet = sh.worksheet("Manual_Jobs")
+        except: 
+            return []
         
         data = worksheet.get_all_records()
         jobs = []
@@ -140,14 +161,34 @@ def load_manual_jobs():
             # Helper to safely get keys (case-insensitive fallback)
             def g(k): return d.get(k) or d.get(k.lower()) or ""
             
-            j = Job(id=str(g("ID")), platform="Manual Entry", title=g("Title"), company=g("Company"), description=g("Description"), url=g("URL"), budget_min=0, budget_max=0, is_remote=True)
-            try: j.relevance_score = int(float(g("Score")))
-            except: j.relevance_score = 0
+            j = Job(
+                id=str(g("ID")), 
+                platform="Manual Entry", 
+                title=g("Title"), 
+                company=g("Company"), 
+                description=g("Description"), 
+                url=g("URL"), 
+                budget_min=0, 
+                budget_max=0, 
+                is_remote=True
+            )
+            
+            # 🛠️ FIX: Assign a clean fallback string for the dashboard to display
+            j.posted_at = "Manually Added" 
+            
+            try: 
+                j.relevance_score = int(float(g("Score")))
+            except: 
+                j.relevance_score = 0
+                
             j.reasoning = g("Reason")
             j.gap_analysis = g("Gap Analysis")
             jobs.append(j)
+            
         return jobs
-    except: return []
+    except Exception as e: 
+        print(f"❌ Error loading manual jobs: {e}")
+        return []
 
 def delete_manual_job(job_id):
     try:
@@ -535,3 +576,25 @@ def normalize_new_matches_dates():
     except Exception as e:
         print(f"❌ Error normalizing dates: {e}")
         return 0
+
+
+def is_manual_duplicate(job_id, job_url):
+    """Checks if a manual job already exists before wasting AI tokens."""
+    try:
+        sh = get_sheet_connection()
+        if not sh: return False
+        
+        ws = sh.worksheet("Manual_Jobs")
+        all_rows = ws.get_all_values()
+        
+        existing_ids = set(row[0] for row in all_rows if len(row) > 0)
+        existing_urls = set(row[4] for row in all_rows if len(row) >= 5)
+        
+        if str(job_id) in existing_ids:
+            return True
+        if job_url and str(job_url) in existing_urls:
+            return True
+            
+        return False
+    except Exception:
+        return False

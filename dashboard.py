@@ -307,40 +307,40 @@ with tab_manual:
             if not m_title or not m_desc:
                 st.error("⚠️ Please provide at least a Job Title and Description.")
             else:
-                # 1. 🛡️ UI SHIELD: Check if we already analyzed this to save Gemini tokens!
-                is_duplicate = False
-                existing_jobs = st.session_state.get("results", {}).get("filtered_jobs", [])
-                for j in existing_jobs:
-                    if j.platform == "Manual Entry" and j.title.lower() == m_title.lower() and getattr(j, "company", "").lower() == m_company.lower():
-                        is_duplicate = True
-                        break
+                # 1. GENERATE ID FIRST
+                import hashlib
+                unique_str = f"{m_title}_{m_company}_{m_url}".lower().replace(" ", "")
+                manual_id = f"manual_{hashlib.md5(unique_str.encode()).hexdigest()[:8]}"
                 
-                if is_duplicate:
-                    st.warning(f"⚠️ You have already saved '{m_title}' at '{m_company}'!")
+                # 2. 🛡️ STRONG DUPLICATE CHECK (Before AI Analysis!)
+                from src.utils.persistence import is_manual_duplicate
+                
+                if is_manual_duplicate(manual_id, m_url):
+                    st.warning(f"⚠️ Skipping! '{m_title}' is already in your database.")
                 else:
+                    # 3. ONLY ANALYZE IF IT IS A BRAND NEW JOB
                     with st.spinner("🤖 Analyzing & Saving..."):
-                        import hashlib
-                        unique_str = f"{m_title}_{m_company}_{m_url}".lower().replace(" ", "")
-                        manual_id = f"manual_{hashlib.md5(unique_str.encode()).hexdigest()[:8]}"
-                        
-                        new_job = Job(id=manual_id, platform="Manual Entry", title=m_title, company=m_company, description=m_desc, url=m_url, budget_min=0, budget_max=0, is_remote=True)
+                        new_job = Job(
+                            id=manual_id, platform="Manual Entry", title=m_title, 
+                            company=m_company, description=m_desc, url=m_url, 
+                            budget_min=0, budget_max=0, is_remote=True
+                        )
                         
                         profile_text = load_profile() or "Generic Developer Profile"
                         scored_jobs = score_jobs_with_resume([new_job], profile_text)
                         final_job = scored_jobs[0]
                         
-                        # 🛡️ THE GATEKEEPER: Only save if the score is decent (e.g., 50 or higher)
-                        if final_job.relevance_score < 50:
+                        # 🛡️ THE GATEKEEPER: Only save if the score is decent
+                        if final_job.relevance_score < 80:
                             st.error(f"🚫 Job Rejected! Score: {final_job.relevance_score}/100")
                             st.warning(f"**AI Reasoning:** {final_job.reasoning}")
-                            if hasattr(final_job, 'gap_analysis'): 
-                                st.info(f"**Missing:** {final_job.gap_analysis}")
-                            st.markdown("*(This job was **not** saved to your database to prevent clutter.)*")
+                            st.markdown("*(This job was **not** saved to prevent clutter.)*")
                         else:
-                            save_manual_job(final_job)
+                            save_status = save_manual_job(final_job)
                             
-                            # Add to session immediately
-                            if "results" not in st.session_state: st.session_state["results"] = {"filtered_jobs": []}
+                            # Add to session immediately so it shows up
+                            if "results" not in st.session_state: 
+                                st.session_state["results"] = {"filtered_jobs": []}
                             st.session_state["results"]["filtered_jobs"].insert(0, final_job)
                             
                             st.success(f"✅ Saved! Score: {final_job.relevance_score}/100")
@@ -414,9 +414,12 @@ with tab_jobs:
                     color = "green" if score >= 80 else "orange" if score >= 50 else "red"
                     
                     # Standardize the date for display
-                    display_date = to_us_date(getattr(job, "posted_at", None))
-                    if not display_date:
-                        display_date = "Date Unknown"
+                    if getattr(job, "platform", "") == "Manual Entry":
+                        display_date = "Manually Added"
+                    else:
+                        display_date = to_us_date(getattr(job, "posted_at", None))
+                        if not display_date:
+                            display_date = "Date Unknown"
 
                     with st.expander(f"**:{color}[{score}/100]** {job.title} @ {getattr(job, 'company', 'Unknown')}"):
                         c1, c2 = st.columns([3, 1])

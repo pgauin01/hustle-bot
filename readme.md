@@ -7,6 +7,8 @@
 ![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.0-8E44AD.svg)
 ![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B.svg)
 
+Live at : https://hustle-bot-xo.streamlit.app/
+
 ## 🌟 System Architecture & Engineering Highlights
 
 This project was built to solve the inefficiencies of manual job hunting by treating the process as a scalable data pipeline.

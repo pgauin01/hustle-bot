@@ -44,7 +44,7 @@ graph LR
 
 ## ✨ Core Features
 
-- **🕵️ Multi-Source Aggregation:** Pulls data from _RemoteOK_, _WeWorkRemotely_, _Freelancer_, and _LinkedIn_.
+- **🕵️ Multi-Source Aggregation:** Pulls high-signal AI startup roles from _Wellfound_, _Y Combinator (Work at a Startup)_, _RemoteOK_, and _LinkedIn_.
 - **🧠 Intelligent Semantic Scoring:** Gemini 2.0 acts as a technical recruiter, scoring jobs (0-100) based on tech stack alignment. It calculates missing gaps, strictly rejects irrelevant roles, and provides strategic application advice.
 - **✍️ Auto-Drafting:** Generates highly personalized cover letters and freelance proposals ready for immediate submission, accessible directly from the UI.
 - **📱 Executive Summary Alerts:** Sends highly formatted HTML Telegram notifications featuring unicorn/high-match badges, AI reasoning, and "One-Click Apply" links.

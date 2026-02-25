@@ -19,6 +19,9 @@ from dotenv import load_dotenv
 from ..utils.persistence import save_dismissed_job
 from datetime import datetime, timedelta
 from ..utils.date_utils import parse_any_date
+# 🚀 NEW PLATFORM IMPORTS
+from ..platforms.ycombinator import fetch_ycombinator_jobs
+
 
 load_dotenv()
 
@@ -45,16 +48,16 @@ def fetch_wwr(state: JobState):
         return {"raw_results": existing + new}
     except Exception: return {"raw_results": existing}
 
-def fetch_upwork(state: JobState):
-    existing = state.get("raw_results", [])
-    if "Upwork" not in state.get("selected_platforms", []): return {"raw_results": existing}
-    query = state.get("search_query", "python")
-    print(f"🌍 Fetching Upwork RSS for '{query}'...")
-    try:
-        raw = fetch_upwork_api(query)
-        new = [{"source": "upwork", "payload": j} for j in raw]
-        return {"raw_results": existing + new}
-    except Exception: return {"raw_results": existing}
+# def fetch_upwork(state: JobState):
+#     existing = state.get("raw_results", [])
+#     if "Upwork" not in state.get("selected_platforms", []): return {"raw_results": existing}
+#     query = state.get("search_query", "python")
+#     print(f"🌍 Fetching Upwork RSS for '{query}'...")
+#     try:
+#         raw = fetch_upwork_api(query)
+#         new = [{"source": "upwork", "payload": j} for j in raw]
+#         return {"raw_results": existing + new}
+#     except Exception: return {"raw_results": existing}
 
 def fetch_freelancer(state: JobState):
     existing = state.get("raw_results", [])
@@ -77,6 +80,34 @@ def fetch_linkedin(state: JobState):
             new_jobs.extend([{"source": "linkedin", "payload": j} for j in raw])
         except: pass
     return {"raw_results": existing + new_jobs}
+
+# 🚀 NEW FETCHER: Y Combinator
+def fetch_ycombinator(state: JobState):
+    existing = state.get("raw_results", [])
+    if "YCombinator" not in state.get("selected_platforms", []): return {"raw_results": existing}
+    query = state.get("search_query", "python")
+    try:
+        raw_jobs = fetch_ycombinator_jobs(query)
+        # The YC script returns Job objects directly, so we extract their dict representations
+        new = [{"source": "ycombinator", "payload": j.__dict__} for j in raw_jobs]
+        return {"raw_results": existing + new}
+    except Exception as e: 
+        print(f"❌ YCombinator Fetcher Error: {e}")
+        return {"raw_results": existing}
+
+# 🚀 NEW FETCHER: Wellfound
+def fetch_wellfound(state: JobState):
+    existing = state.get("raw_results", [])
+    if "Wellfound" not in state.get("selected_platforms", []): return {"raw_results": existing}
+    query = state.get("search_query", "python")
+    try:
+        raw_jobs = fetch_wellfound_jobs(query)
+        # The Wellfound script returns Job objects directly
+        new = [{"source": "wellfound", "payload": j.__dict__} for j in raw_jobs]
+        return {"raw_results": existing + new}
+    except Exception as e: 
+        print(f"❌ Wellfound Fetcher Error: {e}")
+        return {"raw_results": existing}
 
 # --- 2. Normalizer ---
 def normalize_data(state: JobState):
@@ -102,7 +133,9 @@ def normalize_data(state: JobState):
                 job = Job(id=str(p.get("id")), platform="freelancer", title=p.get("title"), company="Freelancer Client", description=p.get("description"), url=p.get("url"), budget_min=float(p.get("budget_min") or 0), budget_max=float(p.get("budget_max") or 0))
             elif source == "linkedin":
                 job = Job(id=p.get("id"), platform="linkedin", title=p.get("title"), company=p.get("company"), description=p.get("description"), url=p.get("url"), budget_min=0.0, budget_max=0.0)
-
+            elif source in ["ycombinator", "wellfound"]:
+                job = Job(id=p.get("id"), platform=p.get("platform"), title=p.get("title"), company=p.get("company"), description=p.get("description", "Description pending LLM deep fetch..."), url=p.get("url"), budget_min=0.0, budget_max=0.0, is_remote=True)
+            
             if job:
                 if job.id in seen_history or job.url in seen_history: continue 
                 if job.url in seen_urls: continue
@@ -228,10 +261,10 @@ def create_graph():
 
     workflow.add_node("remoteok_fetcher", fetch_remoteok)
     workflow.add_node("wwr_fetcher", fetch_wwr)
-    workflow.add_node("upwork_fetcher", fetch_upwork)
+    # workflow.add_node("upwork_fetcher", fetch_upwork)
     workflow.add_node("freelancer_fetcher", fetch_freelancer) 
     workflow.add_node("linkedin_fetcher", fetch_linkedin)
-    
+    workflow.add_node("ycombinator_fetcher", fetch_ycombinator)
     workflow.add_node("normalizer", normalize_data)
     workflow.add_node("scorer", score_jobs)
     
@@ -243,11 +276,11 @@ def create_graph():
     # Flow
     workflow.set_entry_point("remoteok_fetcher") 
     workflow.add_edge("remoteok_fetcher", "wwr_fetcher")
-    workflow.add_edge("wwr_fetcher", "upwork_fetcher")   
-    workflow.add_edge("upwork_fetcher", "freelancer_fetcher")
+    # workflow.add_edge("wwr_fetcher", "upwork_fetcher")   
+    workflow.add_edge("wwr_fetcher", "freelancer_fetcher")
     workflow.add_edge("freelancer_fetcher", "linkedin_fetcher")
-    workflow.add_edge("linkedin_fetcher", "normalizer") 
-    
+    workflow.add_edge("linkedin_fetcher", "ycombinator_fetcher")   
+    workflow.add_edge("ycombinator_fetcher", "normalizer")
     workflow.add_edge("normalizer", "scorer")
     
     # ✅ NEW ORDER: Scorer -> Notifier -> END

@@ -215,7 +215,7 @@ with tab_run:
     query = st.text_input("Target Job Role", key="search_query_input")
 
     # 3. ADD THIS BACK: Platform Selection
-    available_platforms = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
+    available_platforms = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn", "YCombinator"]
     selected_platforms = st.multiselect(
         "🌐 Target Platforms", 
         options=available_platforms,

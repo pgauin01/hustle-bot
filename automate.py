@@ -33,7 +33,7 @@ TARGET_ROLES = [
     "Web3 Full Stack Developer"
 ]
 
-PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
+PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn" , "YCombinator"]
 # PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely"]
 
 

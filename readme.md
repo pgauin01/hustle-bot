@@ -1,243 +1,138 @@
-🤖 HustleBot: Autonomous AI Job Search Orchestrator
+# 🤖 HustleBot: Autonomous AI Job Search Orchestrator
 
-HustleBot is a fully autonomous, production-grade AI agent that manages the entire job search pipeline.
+**HustleBot** is a fully autonomous, production-grade AI agent that manages the entire job search pipeline. Built with **LangGraph** and **Google Gemini 2.0 Flash**, it continuously scrapes job boards, semantically scores opportunities against a master profile, and auto-generates tailored career documents (Resumes & Cover Letters) while tracking everything in a persistent CRM.
 
-Built with LangGraph and Google Gemini 2.0 Flash, it continuously scrapes job boards, semantically scores opportunities against a master profile, auto-generates tailored career documents, and tracks everything inside a persistent CRM.
+![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![LangGraph](https://img.shields.io/badge/LangGraph-Orchestration-orange.svg)
+![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.0-8E44AD.svg)
+![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B.svg)
 
+## 🌟 System Architecture & Engineering Highlights
 
+This project was built to solve the inefficiencies of manual job hunting by treating the process as a scalable data pipeline.
 
+### 1. The Orchestrator (Bypassing Rate Limits)
 
+Job boards heavily rate-limit scrapers. To solve this, HustleBot utilizes a **Time-Based Indexing Scheduler** running via GitHub Actions.
 
+- It targets **15 distinct Engineering roles** (e.g., "RAG Engineer", "Full Stack AI Engineer").
+- The scheduler wakes up exactly every **96 minutes** (1440 mins / 15 roles), calculates the current UTC time, and executes a search for a single, specific role. This ensures 24/7 coverage without triggering platform bans.
 
+### 2. Global Deduplication & Cost Optimization
 
+To prevent unnecessary LLM token usage and API costs, the system uses **Google Sheets as a persistent database** with strict API rate-limit protections.
 
-🌟 System Architecture & Engineering Highlights
+- **Shift-Left Duplicate Checking:** Before passing any manual or automated job to the LLM, the system queries the memory grid to instantly drop URLs or IDs processed in previous runs.
+- **The Safety Valve:** The system enforces a strict 30-job daily insertion limit via bulk-row updates to prevent database bloat and Google Sheets API quota crashes.
+- **Quality Gatekeeper:** Only jobs scoring an 80/100 or higher are saved to the CRM and sent via Telegram.
 
-This project treats job hunting as a scalable data pipeline, not a manual activity.
+### 3. Agentic Workflow (LangGraph)
 
-1️⃣ The Orchestrator (Rate-Limit Safe Design)
+The core logic operates as a directed acyclic graph (DAG) state machine:
 
-Job boards heavily rate-limit scraping activity. HustleBot avoids bans using a Time-Based Indexing Scheduler powered by GitHub Actions.
-
-Targets 15 distinct engineering roles
-
-Runs every 96 minutes (1440 minutes ÷ 15 roles)
-
-Executes exactly one role search per run
-
-Achieves 24/7 distributed coverage without triggering platform throttling
-
-This design converts a rate-limit constraint into a deterministic scheduling advantage.
-
-2️⃣ Global Deduplication & Cost Optimization
-
-LLM tokens are expensive. Duplicate scoring is wasteful.
-
-HustleBot uses Google Sheets as a persistent CRM database with strict quota controls.
-
-Shift-Left Deduplication
-Drops previously seen URLs before LLM evaluation
-
-Daily Safety Valve
-Hard cap of 30 inserts per day via bulk operations
-
-Quality Gatekeeper
-Only roles scoring ≥ 80/100 are saved and notified
-
-Result: lower token burn, lower API cost, controlled database growth.
-
-3️⃣ Agentic Workflow (LangGraph DAG)
-
-The core engine runs as a directed acyclic graph (DAG) state machine:
-
+```mermaid
 graph LR
     A[Multi-Source Scrapers] --> B[Deduplication Node]
     B --> C{Strict Keyword Filter}
     C -- Pass --> D[Gemini 2.0 Scorer]
-    C -- Fail --> X[Discard]
-    D -- Score >= 80 --> E[Google Sheets CRM via Bulk Insert]
-    D -- Score < 80 --> X
-    E --> F[Telegram Executive Summary]
+    C -- Fail --> End
+    D -- Score > 80 --> E[Google Sheets CRM]
+    E --> F[Telegram Exec Summary]
+```
 
-This ensures:
+## ✨ Core Features
 
-Deterministic execution
+- **🕵️ Multi-Source Aggregation:** Pulls data from _RemoteOK_, _WeWorkRemotely_, _Freelancer_, and _LinkedIn_.
+- **🧠 Intelligent Semantic Scoring:** Gemini 2.0 acts as a technical recruiter, scoring jobs (0-100) based on tech stack alignment. It calculates missing gaps, strictly rejects irrelevant roles, and provides strategic application advice.
+- **✍️ Auto-Drafting:** Generates highly personalized cover letters and freelance proposals ready for immediate submission, accessible directly from the UI.
+- **📱 Executive Summary Alerts:** Sends highly formatted HTML Telegram notifications featuring unicorn/high-match badges, AI reasoning, and "One-Click Apply" links.
+- **📊 Streamlit Command Center:** A fully deployed cloud dashboard to view matches, filter by score/date, manually inject jobs, and track application statuses.
 
-Explicit failure paths
+---
 
-Controlled branching
+## 🚀 Getting Started
 
-Clean observability
+### 1. Prerequisites
 
-✨ Core Features
-🕵️ Multi-Source Aggregation
+- Python 3.10+
+- Google Gemini API Key
+- Telegram Bot Token & Chat ID
+- Google Service Account JSON (for Sheets)
 
-Pulls job data from:
+### 2. Installation
 
-RemoteOK
-
-WeWorkRemotely
-
-Freelancer
-
-LinkedIn
-
-🧠 Intelligent Semantic Scoring
-
-Gemini 2.0 acts like a technical recruiter:
-
-Scores roles 0–100
-
-Identifies missing skill gaps
-
-Rejects irrelevant roles
-
-Generates strategic application insights
-
-✍️ Auto-Drafting Engine
-
-Generates:
-
-Tailored resumes
-
-Custom cover letters
-
-Freelance proposals
-
-Ready for immediate submission.
-
-📱 Executive Telegram Alerts
-
-Sends formatted HTML summaries including:
-
-High-match indicators
-
-AI reasoning
-
-Direct apply links
-
-📊 Streamlit Command Center
-
-Cloud dashboard for:
-
-Viewing matches
-
-Filtering by score/date
-
-Manual job injection
-
-Tracking application status
-
-🚀 Getting Started
-1️⃣ Prerequisites
-
-Python 3.10+
-
-Google Gemini API Key
-
-Telegram Bot Token & Chat ID
-
-Google Service Account JSON (for Sheets access)
-
-2️⃣ Installation
-git clone https://github.com/pgauin/hustle-bot.git
+```bash
+git clone https://github.com/pgauin01/hustle-bot.git
 cd hustle-bot
 pip install -r requirements.txt
-3️⃣ Configuration
+```
 
-Set secrets using .streamlit/secrets.toml or a .env file.
+### 3. Configuration
 
-Example:
+Set your secrets securely using Streamlit Secrets (`.streamlit/secrets.toml`) or a local `.env` file:
 
+```toml
 GOOGLE_API_KEY = "AIzaSy..."
 TELEGRAM_BOT_TOKEN = "123456:ABC-DEF..."
 TELEGRAM_CHAT_ID = "987654321"
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/..."
 GOOGLE_CREDENTIALS_JSON = """{ "type": "service_account", ... }"""
-4️⃣ Setup Your Master Profile
+```
 
-Edit profile.md.
+### 4. Setup Your Profile
 
-This file is the AI’s source-of-truth resume.
+Edit the `profile.md` file in the root directory. This serves as the "Master Source" for the AI. _Tip: Be detailed! The AI subtracts/re-orders from this file, it doesn't invent new skills._
 
-The system:
+---
 
-Reorders
+## 🖥️ Usage
 
-Filters
+**Option A: The Dashboard (Interactive)**
+Best for manual searches, downloading tailored resumes, and reviewing your CRM.
 
-Subtracts gaps
-
-It does not hallucinate new skills.
-
-Be detailed.
-
-🖥️ Usage
-Option A: Dashboard Mode (Interactive)
-
-Best for manual exploration and CRM management.
-
+```bash
 streamlit run dashboard.py
-Option B: Headless Mode (CLI Automation)
+```
 
-Trigger role-specific runs:
+**Option B: Headless Mode (CLI)**
+Trigger a local headless run targeting a specific role using the orchestrator:
 
+```bash
 python automate.py --role "Senior Full Stack Engineer"
-☁️ Automated Deployment (GitHub Actions Scheduler)
+```
 
-Preconfigured workflow:
-.github/workflows/daily_bot.yml
+---
 
-Setup Steps:
+## ☁️ Deployment (GitHub Actions)
 
-Push repository to GitHub
+This repo includes a pre-configured workflow for the 96-minute scheduler (`.github/workflows/daily_bot.yml`).
 
-Navigate to:
-Settings → Secrets and variables → Actions
+1. Push code to GitHub.
+2. Go to **Settings > Secrets and variables > Actions**.
+3. Add your secrets (`GOOGLE_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GOOGLE_SHEET_URL`, `GOOGLE_CREDENTIALS_JSON`).
+4. The bot will now run automatically in the background, pinging your Telegram throughout the day with the Top 3 matches per role.
 
-Add:
+---
 
-GOOGLE_API_KEY
+## 📂 Project Structure
 
-TELEGRAM_BOT_TOKEN
-
-TELEGRAM_CHAT_ID
-
-GOOGLE_SHEET_URL
-
-GOOGLE_CREDENTIALS_JSON
-
-Scheduler runs automatically every 96 minutes
-
-You now have a background AI recruiter working continuously.
-
-📂 Project Structure
+```text
 hustle-bot/
-├── .github/workflows/      # 96-minute scheduler
-├── generated_resumes/      # AI-generated markdown resumes
+├── .github/workflows/   # CI/CD for the 96-minute time-based scheduler
+├── generated_resumes/   # Ephemeral storage for AI-tailored Markdown resumes
 ├── src/
-│   ├── graph/              # LangGraph workflow definitions
-│   ├── llm/                # Gemini scoring & drafting
-│   ├── models/             # Job schema definitions
-│   ├── platforms/          # Scrapers & integrations
-│   ├── notifications/      # Telegram alert formatting
-│   └── utils/              # Sheets persistence & helpers
-├── dashboard.py            # Streamlit UI
-├── automate.py             # Headless orchestrator
-├── profile.md              # Master resume source
-└── requirements.txt        # Dependencies
-🛡️ License
+│   ├── graph/           # LangGraph State & Workflow definitions
+│   ├── llm/             # Gemini integrations (Scoring, Tailoring, Proposals)
+│   ├── models/          # Data Classes (Job schema)
+│   ├── platforms/       # Web Scrapers & API integrations
+│   ├── notifications/   # HTML-formatted Telegram alerts
+│   └── utils/           # Google Sheets persistence & DataFrame handling
+├── dashboard.py         # Streamlit Cloud UI
+├── automate.py          # Headless orchestrator & CLI entry point
+├── profile.md           # The Master Resume data source
+└── requirements.txt     # Python Dependencies
+```
 
-MIT License.
+## 🛡️ License
 
-Built to automate the hustle.
-
-This version will render:
-
-Mermaid diagram correctly
-
-Markdown sections cleanly
-
-No lexical errors
-
-No nested fence conflicts
+MIT License. Built to automate the hustle.

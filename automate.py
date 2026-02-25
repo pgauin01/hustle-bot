@@ -7,13 +7,30 @@ from src.utils.persistence import save_new_matches, get_already_saved_ids, log_j
 
 # --- 1. THE 19 TARGETED ROLES ---
 TARGET_ROLES = [
-    "Senior Full Stack Engineer", "AI Application Engineer", "LLM Engineer",
-    "Generative AI Engineer", "RAG Engineer", "AI Product Engineer",
-    "AI Systems Engineer", "Founding Engineer (AI)", "Full Stack AI Engineer",
-    "Machine Learning Engineer", "Backend Engineer (AI)", "Principal AI Engineer",
-    "Staff Software Engineer", "React Native AI Engineer", "Python AI Engineer", 
-    "Smart Contract Engineer" , "Solidity Developer", "Ethereum Developer",
-    "Blockchain Developer" 
+    # --- The "Sweet Spot" (AI + Full Stack) ---
+    "Full Stack AI Engineer",
+    "AI Application Engineer",
+    "Senior Full Stack Engineer",
+    
+    # --- Applied GenAI & LLMs ---
+    "Generative AI Engineer",
+    "LLM Engineer",
+    "RAG Engineer",
+    "AI Systems Engineer",
+    
+    # --- High-Impact Startups & Backend ---
+    "Founding Engineer (AI)",
+    "Backend Engineer (AI)",
+    "Python AI Engineer",
+    
+    # --- Traditional High-Scale Roles ---
+    "Senior React Native Engineer",
+    "Senior Node.js Engineer",
+    "Senior Frontend Engineer",
+    
+    # --- Web3 / Blockchain (Condensed) ---
+    "Smart Contract Engineer",
+    "Web3 Full Stack Developer"
 ]
 
 PLATFORMS_TO_SEARCH = ["RemoteOK", "WeWorkRemotely", "Freelancer", "LinkedIn"]
@@ -33,7 +50,7 @@ def get_role_for_current_time():
     
     # 3. Use the day counter as an offset so the starting role shifts every day
     # This ensures that roles at indices 15-18 get searched regularly
-    total_index = (days_since_epoch * 15 + interval_index) % len(TARGET_ROLES)
+    total_index = (days_since_epoch * 15 + interval_index) % 15
     
     return TARGET_ROLES[total_index]
 

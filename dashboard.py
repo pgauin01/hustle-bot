@@ -51,24 +51,30 @@ def suggest_roles(skills=""):
     Returns a hardcoded list of targeted AI & Full Stack roles tailored to the user's profile.
     """
     return [
-        "Senior Full Stack Engineer",
-        "AI Application Engineer",
-        "LLM Engineer",
-        "Generative AI Engineer",
-        "RAG Engineer",
-        "AI Product Engineer",
-        "AI Systems Engineer",
-        "Founding Engineer (AI)",
-        "Full Stack AI Engineer",
-        "AI Solutions Engineer",
-        "AI Application Engineer",
-        "AI Systems Engineer",
-        "RAG & LLM Applications Engineer",
-        "Generative AI Software Engineer",
-        "Smart Contract Engineer" ,
-        "Solidity Developer",
-        "Ethereum Developer",
-        "Blockchain Developer" 
+         # --- The "Sweet Spot" (AI + Full Stack) ---
+    "Full Stack AI Engineer",
+    "AI Application Engineer",
+    "Senior Full Stack Engineer",
+    
+    # --- Applied GenAI & LLMs ---
+    "Generative AI Engineer",
+    "LLM Engineer",
+    "RAG Engineer",
+    "AI Systems Engineer",
+    
+    # --- High-Impact Startups & Backend ---
+    "Founding Engineer (AI)",
+    "Backend Engineer (AI)",
+    "Python AI Engineer",
+    
+    # --- Traditional High-Scale Roles ---
+    "Senior React Native Engineer",
+    "Senior Node.js Engineer",
+    "Senior Frontend Engineer",
+    
+    # --- Web3 / Blockchain (Condensed) ---
+    "Smart Contract Engineer",
+    "Web3 Full Stack Developer"
     ]
     
 def smart_fetch_description(url):

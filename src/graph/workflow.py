@@ -159,7 +159,7 @@ def score_jobs(state: JobState):
                 is_fresh = False
 
         # Only proceed if it's an Elite Match (85+) and Fresh
-        if score >= 85 and is_fresh:
+        if score >= 80 and is_fresh:
             elite_matches.append(job)
         else:
             # Ghost the bad/old ones so we don't see them again

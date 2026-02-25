@@ -380,7 +380,7 @@ def clear_graveyard():
     
 
 def save_new_matches(jobs):
-    """Saves jobs using text dates in M/D/YYYY to avoid Google serial conversion."""
+    """Saves jobs using a BULK INSERT to prevent API crashes and strict duplicate checking."""
     try:
         sh = get_sheet_connection()
         if not sh: return
@@ -388,46 +388,40 @@ def save_new_matches(jobs):
         try:
             ws = sh.worksheet("New_Matches")
         except:
-            ws = sh.add_worksheet(title="New_Matches", rows="100", cols="8")
-            ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Score", "Reasoning"])
+            ws = sh.add_worksheet(title="New_Matches", rows="100", cols="9")
+            ws.append_row(["ID", "Title", "Company", "Platform", "URL", "Date Posted", "Date Added", "Score", "Reasoning"])
 
-        # 1. Current day for fallback and daily cap checks
-        # today = datetime.now().date()
-        # 1. Get current date for comparison
+        # 1. Get the bot's current date
         today = datetime.now()
         today_str = f"{today.month}/{today.day}/{today.year}"
 
-        # 🛡️ 2. CHECK GLOBAL DAILY LIMIT (Checking Column 6: Date Posted)
+        # 2. Fetch all rows ONCE to check limits and duplicates
         all_rows = ws.get_all_values()
-        today_count = 0
         
-        if len(all_rows) > 1:
-            # We look at index 5 (Column 6) which is where 'Date Posted' is stored
-            # We use 'in' to handle cases where the date has a single quote prefix
-            today_count = sum(1 for row in all_rows if len(row) >= 6 and today_str in str(row[5]))
+        # Count how many jobs have today's date in Column 7 (index 6)
+        today_count = sum(1 for row in all_rows if len(row) >= 7 and today_str in str(row[6]))
 
         if today_count >= 30:
             print(f"🛑 [SAFETY VALVE] Already saved {today_count}/30 jobs today. Skipping.")
             return
 
-        # 3. CALCULATE REMAINING CAPACITY
         slots_left = 30 - today_count
         to_save = jobs[:slots_left]
 
-        # 🛡️ 2. CHECK SHEET FOR EXISTING IDs (Preventing duplicates)
-        existing_ids = set(ws.col_values(1))
-        existing_url = set(ws.col_values(5)) # Also track URLs to prevent duplicates if IDs are missing
-        saved_now = 0
+        # 🛡️ 3. BULLETPROOF DUPLICATE CHECKING
+        # Create sets from the all_rows data we already fetched (faster than calling col_values)
+        existing_ids = set(row[0] for row in all_rows if len(row) > 0)
+        existing_urls = set(row[4] for row in all_rows if len(row) >= 5) 
+        
+        rows_to_insert = []
         
         for job in to_save:
-            if saved_now >= slots_left: break
-            
-            # Skip if url already exists in sheet
-            if str(job.url) in existing_url:
+            # Strictly check both ID and URL
+            if str(job.id) in existing_ids or str(job.url) in existing_urls:
+                print(f"   ⏭️ [DEBUG] Skipping Duplicate: {job.title}")
                 continue
 
-            # Standardize to M/D/YYYY and write as RAW text.
-            date_val = to_us_date(job.posted_at, fallback_today=True)
+            date_posted = to_us_date(job.posted_at, fallback_today=True)
             
             row = [
                 str(job.id),
@@ -435,15 +429,27 @@ def save_new_matches(jobs):
                 getattr(job, "company", "Unknown"),
                 job.platform,
                 job.url,
-                date_val,                 # Column 6: Date Posted
-                str(job.relevance_score),  # Column 7: Score
-                job.reasoning              # Column 8: Reasoning
+                date_posted,              
+                today_str,                
+                str(job.relevance_score), 
+                job.reasoning             
             ]
-            ws.append_row(row, value_input_option="RAW")
+            rows_to_insert.append(row)
+            
+            # Add to local sets so we don't duplicate within the same batch
             existing_ids.add(str(job.id))
-            saved_now += 1
-            print(f"✅ Saved Elite Match: {job.title} (Date: {date_val})")
+            existing_urls.add(str(job.url))
 
+        # 🚀 4. THE MAGIC: BULK INSERT
+        if rows_to_insert:
+            # append_rows sends ONE single API request, completely avoiding rate limits!
+            ws.append_rows(rows_to_insert, value_input_option="RAW")
+            print(f"✅ Successfully bulk-saved {len(rows_to_insert)} new jobs in a single API call!")
+        else:
+            print("🤷 No new unique jobs to save.")
+
+    except Exception as e:
+        print(f"❌ Persistence Save Error: {e}")
     except Exception as e:
         print(f"❌ Persistence Save Error: {e}")
 

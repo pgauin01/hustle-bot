@@ -92,7 +92,7 @@ GOOGLE_CREDENTIALS_JSON = '''
 ```
 
 ## Local Google Credentials:
-Place a credentials.json file (your Google Service Account JSON) directly in the root directory of the project. This file is already tracked in .gitignore to keep your credentials safe from accidental public commits.
+Place your credentials.json file (your Google Service Account JSON) directly in the root directory of the project. This file is already tracked in .gitignore to keep your credentials safe from accidental public commits.
 ```json
 {
   "type": "service_account",

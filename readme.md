@@ -6,6 +6,7 @@
 ![LangGraph](https://img.shields.io/badge/LangGraph-Orchestration-orange.svg)
 ![Gemini](https://img.shields.io/badge/AI-Google%20Gemini%202.0-8E44AD.svg)
 ![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B.svg)
+<img width="1920" height="1230" alt="HustleBot-03-08-2026_01_19_AM" src="https://github.com/user-attachments/assets/18863629-302c-42b9-b2ef-643ac6eb5507" />
 
 ## 🌟 System Architecture & Engineering Highlights
 

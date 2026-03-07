@@ -1,74 +1,85 @@
 import os
 from typing import List, Dict
 from pathlib import Path
+from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import PromptTemplate
 from ..models.job import Job
+from dotenv import load_dotenv  
 
-try:
-    from google import genai
-    from google.genai import types
-except ImportError:
-    genai = None
 
-# A mock resume profile (In V2, we will load this from a file)
-MY_PROFILE = """
-I am a Senior Python Developer with 6 years of experience.
-Expertise: Python, Django, FastAPI, AWS, and Web Scraping.
-GitHub: github.com/pgauin01
-"""
-
+load_dotenv()
+openrouter_model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
 def load_profile():
     """Reads the user's profile from profile.md in the root directory."""
     try:
-        # Assuming profile.md is in the project root (2 levels up from this file)
         root_dir = Path(__file__).parent.parent.parent
         profile_path = root_dir / "profile.md"
         
         if profile_path.exists():
             return profile_path.read_text(encoding="utf-8")
-        else:
-            return "A passionate Python Developer with 5 years of experience."
     except Exception:
-        return "A passionate Python Developer."
+        pass
+    return "A passionate Python Developer with 5 years of experience."
 
 def generate_proposals(jobs: List[Job]) -> Dict[str, str]:
     """
-    Generates a cover letter for the top jobs.
-    Returns a dict: {job_id: proposal_text}
+    Generates a cover letter for the top jobs using a Hybrid Router (Gemini or OpenRouter).
     """
-    api_key = os.getenv("GOOGLE_API_KEY")
-    user_profile = load_profile()
-    if not api_key or not genai:
-        return {}
+    active_engine = os.getenv("ACTIVE_LLM", "openrouter").lower()
+    print(f"✍️  Drafting proposals for {len(jobs)} jobs using {active_engine.upper()}...")
+    
+    # 1. SETUP THE HYBRID BRAIN
+    if active_engine == "gemini":
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key: return {}
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.7)
+    else:
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key: return {}
+        llm = ChatOpenAI(
+            model=openrouter_model,
+            openai_api_key=api_key,
+            openai_api_base="https://openrouter.ai/api/v1",
+            default_headers={"HTTP-Referer": "https://github.com/pgauin01/hustle-bot", "X-Title": "HustleBot"},
+            temperature=0.7
+        )
 
-    client = genai.Client(api_key=api_key)
     proposals = {}
+    
+    # 2. THE UNIFIED PROMPT
+    prompt_template = """
+    You are an expert freelancer applying for a job. Write a concise, professional cover letter.
+    
+    MY PROFILE:
+    {profile}
+    
+    JOB DESCRIPTION:
+    Title: {title}
+    Company: {company}
+    Description: {description}
+    
+    RULES:
+    1. Keep it under 150 words.
+    2. Mention specific skills from the description that match my profile.
+    3. Do not use placeholders. Sign it with the name found in the profile (or "A Dedicated Developer").
+    4. Provide ONLY the cover letter text, no conversational filler.
+    """
+    
+    prompt = PromptTemplate(template=prompt_template, input_variables=["profile", "title", "company", "description"])
+    chain = prompt | llm
 
-    print(f"✍️  Drafting proposals for {len(jobs)} jobs...")
-
+    # 3. EXECUTE
+    user_profile = load_profile()
     for job in jobs:
-        prompt = f"""
-        You are an expert freelancer applying for a job. Write a concise, professional cover letter.
-        
-        MY PROFILE:
-        {user_profile}
-        
-        JOB DESCRIPTION:
-        Title: {job.title}
-        Company: {getattr(job, 'company', 'Unknown')}
-        Description: {job.description[:800]}
-        
-        RULES:
-        1. Keep it under 150 words.
-        2. Mention specific skills from the description that match my profile.
-        3. Do not use placeholders. Sign it with the name found in the profile (or "A Dedicated Developer" if none found).
-        """
-
         try:
-            response = client.models.generate_content(
-                model="gemini-2.5-pro",
-                contents=prompt
-            )
-            proposals[job.id] = response.text
+            response = chain.invoke({
+                "profile": user_profile,
+                "title": job.title,
+                "company": getattr(job, 'company', 'Unknown'),
+                "description": (job.description or "")[:800]
+            })
+            proposals[job.id] = getattr(response, "content", "").strip()
         except Exception as e:
             print(f"❌ Failed to draft for {job.title}: {e}")
             

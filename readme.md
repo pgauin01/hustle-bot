@@ -73,10 +73,10 @@ Set your secrets:
 If using .env file:
 ```json
 {
-GOOGLE_API_KEY = "AIzaSy..."
-TELEGRAM_BOT_TOKEN = "123456:ABC-DEF..."
-TELEGRAM_CHAT_ID = "987654321"
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/..."
+"GOOGLE_API_KEY" = "AIzaSy..."
+"TELEGRAM_BOT_TOKEN" = "123456:ABC-DEF..."
+"TELEGRAM_CHAT_ID" = "987654321"
+"GOOGLE_SHEET_URL" = "https://docs.google.com/spreadsheets/d/..."
 }
 ```
 

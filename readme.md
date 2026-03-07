@@ -76,7 +76,24 @@ GOOGLE_API_KEY = "AIzaSy..."
 TELEGRAM_BOT_TOKEN = "123456:ABC-DEF..."
 TELEGRAM_CHAT_ID = "987654321"
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/..."
-GOOGLE_CREDENTIALS_JSON = """{ "type": "service_account", ... }"""
+```
+
+## Local Google Credentials:
+Place a credentials.json file (your Google Service Account JSON) directly in the root directory of the project. This file is already tracked in .gitignore to keep your credentials safe from accidental public commits.
+```json
+{
+  "type": "service_account",
+  "project_id": "hustle-bot-sheets",
+  "private_key_id": "your-private-key",
+  "private_key": "-----BEGIN PRIVATE KEY-----your-key-----END PRIVATE KEY-----\n",
+  "client_email": "sheet email",
+  "client_id": "your_client_id",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sheet-logger%40hustle-bot-sheets.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
 ```
 
 ### 4. Setup Your Profile

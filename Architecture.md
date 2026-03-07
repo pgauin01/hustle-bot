@@ -45,6 +45,7 @@ graph TD
     
     LG -->|3. Save| GS
     LG -->|4. Alert| TG
+```
 
 
 ## 2. Module 1: Job Discovery & Scraping Flow

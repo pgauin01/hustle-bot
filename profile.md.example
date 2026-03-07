@@ -1,0 +1,22 @@
+# John Doe
+**Senior AI Engineer & Full Stack Developer**
+
+## Professional Summary
+A passionate Software Engineer with 5+ years of experience building scalable backend APIs, RAG-based AI agents, and dynamic frontend applications. Proven track record of optimizing database queries, bypassing web scrapers, and orchestrating complex LangGraph workflows.
+
+## Core Skills
+* **Languages:** Python, JavaScript, TypeScript, SQL
+* **AI/ML:** LangGraph, LangChain, Google Gemini, OpenAI, Llama 3, Prompt Engineering
+* **Backend:** FastAPI, Django, Node.js
+* **Cloud & DevOps:** AWS, Docker, GitHub Actions, CI/CD pipelines
+* **Scraping:** Playwright, BeautifulSoup, Selenium
+
+## Work Experience
+### Senior AI Engineer @ TechCorp (2022 - Present)
+* Architected an autonomous LangGraph agent that reduced manual data entry by 40%.
+* Integrated Llama-3 and Gemini APIs for semantic scoring and unstructured data parsing.
+* Deployed scalable Playwright scrapers that successfully bypassed Cloudflare protections.
+
+### Backend Developer @ Startup Inc (2019 - 2022)
+* Built RESTful APIs using FastAPI and PostgreSQL, serving 10,000+ daily active users.
+* Implemented Redis caching layers to reduce average API response times by 35%.

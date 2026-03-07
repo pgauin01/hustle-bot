@@ -72,11 +72,14 @@ pip install -r requirements.txt
 Set your secrets:
 If using .env file:
 ```json
+{
 GOOGLE_API_KEY = "AIzaSy..."
 TELEGRAM_BOT_TOKEN = "123456:ABC-DEF..."
 TELEGRAM_CHAT_ID = "987654321"
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/..."
+}
 ```
+
 If using Streamlit Secrets (`.streamlit/secrets.toml`)
 ```toml
 GOOGLE_API_KEY = "AIzaSy..."

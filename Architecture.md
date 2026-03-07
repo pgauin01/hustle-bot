@@ -4,7 +4,7 @@ This document outlines the high-level architecture, module-specific user flows, 
 
 ---
 
-## 1. High-Level System Architecture
+##  High-Level System Architecture
 
 The macro-view of how HustleBot operates. It runs on a dual-trigger system: **Time-based** (GitHub Actions cron) and **User-initiated** (Streamlit UI).
 
@@ -48,7 +48,7 @@ graph TD
 ```
 
 
-## 2. Module 1: Job Discovery & Scraping Flow
+##  Module 1: Job Discovery & Scraping Flow
 This module is responsible for reaching out to various platforms, bypassing bot protections, and normalizing the disparate HTML/JSON into a standard Job object.
 ```mermaid
 flowchart LR
@@ -70,7 +70,7 @@ flowchart LR
     Dedup1 -- Unique --> Out([Normalized Jobs Array])
 ```
 
-## 3 Module 2: AI Evaluation & Gatekeeper Flow
+##  Module 2: AI Evaluation & Gatekeeper Flow
 Once jobs are collected and normalized, they enter the intelligence pipeline. This flow ensures API costs are minimized by dropping bad jobs before they hit the LLM.
 ```mermaid
 flowchart TD
@@ -93,7 +93,7 @@ flowchart TD
     Sort --> Out([Elite Jobs Array])
 ```
 
-## 4 Module 3: Persistence & Database Flow
+##  Module 3: Persistence & Database Flow
 To prevent Google Sheets API rate-limiting (429 Quota Exceeded), this module handles the safe, bulk-insertion of jobs into the CRM.
 ```mermaid
 sequenceDiagram
@@ -117,7 +117,7 @@ sequenceDiagram
         Persistence-->>LangGraph: Success
     end
 ```
-## 5 Module 4: Dashboard & Manual Hunt Flow
+##  Module 4: Dashboard & Manual Hunt Flow
 The interactive user flow for the Streamlit dashboard. It allows the user to manually bypass the scrapers and inject a specific job directly into the AI evaluation pipeline.
 ```mermaid
 stateDiagram-v2
@@ -149,8 +149,9 @@ stateDiagram-v2
     CoverLetter --> RAG : Gemini generates Letter based on Job + Profile
 ```
 
-## 6 Module 5: Telegram Notification Flow
+##  Module 5: Telegram Notification Flow
 The final step in the automated pipeline. It alerts the user immediately when a high-quality job is secured.
+
 ```mermaid
 flowchart LR
     In([Elite Jobs Saved]) --> Loop[Iterate Top 3 Jobs]
@@ -165,7 +166,6 @@ flowchart LR
     AddLink --> API[POST /sendMessage]
     
     API --> Telegram((User Mobile App))
-    API --> Sleep[time.sleep(1) to avoid API bans]
+    API --> Sleep["time.sleep(1) to avoid API bans"]
     Sleep --> Loop
-```
 

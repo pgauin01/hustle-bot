@@ -3,7 +3,11 @@
 Building a fully autonomous AI agent that runs 24/7 without getting banned or bankrupting me on API costs presented several unique engineering challenges. Here is how I solved them.
 
 ### Challenge 1: Bypassing Enterprise Bot Protection (Cloudflare)
+
 **The Problem:** Modern job boards like Wellfound and Y Combinator use aggressive bot protection (Cloudflare, DataDome) that instantly blocks standard `requests` or basic Selenium scripts.
+<img width="800" alt="wf_debug" src="https://github.com/user-attachments/assets/02a180b1-f095-44ad-a1af-76813b98fdec" />
+<br>
+*Fig 1: The standard Cloudflare anti-bot wall encountered during initial Playwright testing.*
 **The Solution:** I implemented a two-phase Playwright extraction strategy. First, I use a headless Chromium instance to navigate the React SPA and trigger lazy loading. Instead of relying on brittle CSS selectors, I use resilient regex and DOM traversal to extract raw job URLs. Second, I perform a "Deep Fetch" loop with custom timeout handling (`PlaywrightTimeoutError`) to snatch the DOM text even if heavy tracking scripts fail to load.
 
 ### Challenge 2: LLM Rate Limiting and Failover Architecture
